@@ -19,7 +19,7 @@ from app.models.schemas import RequestConstraints, TenantContext  # noqa: E402
 
 def run() -> None:
     print("=" * 80)
-    print("ATLAS ROUTER — COMPLETE END-TO-END DEMONSTRATION")
+    print("ATLAS NEURAL GATEWAY — COMPLETE END-TO-END DEMONSTRATION")
     print("=" * 80)
     print()
 

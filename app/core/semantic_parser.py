@@ -26,6 +26,7 @@ from app.core.domain_classifier import (
     RISK_METADATA,
     classify_domain,
 )
+from app.core.database import get_all_feedback
 from app.models.schemas import (
     ArtifactProfile,
     RequestConstraints,
@@ -61,6 +62,33 @@ def deterministic_extract(prompt: str, input_formats: List[str], estimated_token
     }
 
 
+def infer_complexity(prompt: str, estimated_tokens: int, semantic: StructuredSemanticParse) -> str:
+    """Conservative task-complexity classification independent of token count."""
+    if estimated_tokens > 150_000:
+        return "high"
+    if estimated_tokens > 30_000:
+        return "medium"
+
+    p = prompt.lower()
+    high_signals = [
+        "entire codebase", "architecture", "multi-file", "multiple files",
+        "production ready", "production-ready", "migration", "distributed",
+        "concurrent", "refactor", "end-to-end", "e2e", "security audit",
+        "threat model", "integration test", "deployment", "all these problems",
+    ]
+    medium_signals = [
+        "implement", "debug", "review", "test", "design", "analyze",
+        "compare", "several", "requirements", "complex",
+    ]
+    high_count = sum(signal in p for signal in high_signals)
+    medium_count = sum(signal in p for signal in medium_signals)
+    if high_count >= 2 or (high_count and semantic.primary_family in {"coding", "agent", "reasoning"}):
+        return "high"
+    if high_count or medium_count >= 2 or semantic.decomposition_needed:
+        return "medium"
+    return "low"
+
+
 def fallback_structured_semantic_parse(
     prompt: str,
     input_formats: List[str],
@@ -74,6 +102,42 @@ def fallback_structured_semantic_parse(
     workflow_graph: List[Dict[str, Any]] = []
     document_type = "generic"
     reason_parts = []
+
+    # ---- Dynamic Memory Check (Learned Heuristics) ----
+    try:
+        feedback_examples = get_all_feedback()
+        for ex in feedback_examples:
+            # If the current prompt contains the exact historical prompt, use the corrected family!
+            if ex["prompt"].lower() in p:
+                primary = ex["correct_family"]
+                reason_parts.append(f"Routed via Heuristic Parser (Learned from Memory Bank). Matched historical correction: '{ex['prompt']}'.")
+                
+                # Default safety/domain values for memorized edge cases
+                return StructuredSemanticParse(
+                    primary_family=primary,
+                    secondary_families=[],
+                    required_stages=[primary],
+                    workflow_graph=[{
+                        "stage_id": 1,
+                        "stage_name": primary,
+                        "depends_on": [],
+                        "fallbacks_prepared": True,
+                    }],
+                    domain="general",
+                    risk_tier="low",
+                    risk_type="standard",
+                    expected_output="free_text",
+                    ambiguity_score=0.10,
+                    actionability="advisory",
+                    document_type="generic",
+                    decomposition_needed=False,
+                    needs_verification=False,
+                    parser_confidence=0.99, # Highly confident since it's an exact memorized correction
+                    reason_summary=" ".join(reason_parts)
+                )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to query Memory Bank in heuristic parser: {e}")
 
     # ---- Primary family detection ----
     if any(fmt == "audio" for fmt in input_formats):
@@ -100,6 +164,12 @@ def fallback_structured_semantic_parse(
         primary = "document_qa"
         secondary = ["reasoning"]
         reason_parts.append("Spreadsheet analysis pattern detected.")
+    elif _word_match(p, ["generate video", "create video", "make a video", "generate a video", "animate", "sora", "runway"]):
+        primary = "video_generation"
+        reason_parts.append("Video generation keywords detected.")
+    elif _word_match(p, ["generate image", "create image", "make a picture", "generate an image", "draw", "midjourney", "dalle", "stable diffusion", "flux"]):
+        primary = "image_generation"
+        reason_parts.append("Image generation keywords detected.")
     elif _word_match(p, ["python", "javascript", "typescript", "java", "rust", "golang",
          "c++", "c#", "ruby", "php", "swift", "kotlin", "scala",
          "react", "vue", "angular", "django", "flask", "fastapi",
@@ -259,7 +329,8 @@ def fallback_structured_semantic_parse(
 def validate_structured_parse(data: StructuredSemanticParse) -> StructuredSemanticParse:
     allowed_families = {
         "coding", "reasoning", "mathematics", "chat", "vision",
-        "ocr", "document_qa", "summarization", "translation", "agent", "audio"
+        "ocr", "document_qa", "summarization", "translation", "agent", "audio",
+        "video_generation", "image_generation"
     }
     if data.primary_family not in allowed_families:
         raise ValueError(f"Invalid primary family: {data.primary_family}")
@@ -378,7 +449,7 @@ def parse_task_request(
         if topic in topic_to_domain:
             soft.domain, soft.risk_tier, soft.risk_type, soft.document_type = topic_to_domain[topic]
 
-    complexity = "high" if estimated_tokens > 150000 else "medium" if estimated_tokens > 30000 else "low"
+    complexity = infer_complexity(prompt, estimated_tokens, soft)
     workflow_profile = infer_workflow_profile(soft.primary_family, soft.domain, input_formats, prompt)
     requires_verifier = (
         hard["requires_verifier"]
@@ -405,11 +476,13 @@ def parse_task_request(
         risk_tier=soft.risk_tier,
         risk_type=soft.risk_type,
         required_formats=hard["required_formats"],
-        requires_json=hard["requires_json"],
+        requires_json=hard["requires_json"] or rc.require_json,
         requires_function_calling=hard["requires_function_calling"],
-        requires_web_search=hard["requires_web_search"],
-        requires_ocr=hard["requires_ocr"],
-        requires_citations=hard["requires_citations"],
+        requires_web_search=hard["requires_web_search"] or rc.require_web_search,
+        requires_ocr=hard["requires_ocr"] or rc.require_ocr,
+        requires_citations=hard["requires_citations"] or rc.require_citations,
+        requires_image_generation=soft.primary_family == "image_generation",
+        requires_video_generation=soft.primary_family == "video_generation",
         requires_verifier=requires_verifier,
         min_context_window=hard["min_context_window"],
         expected_output=soft.expected_output,

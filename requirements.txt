@@ -23,4 +23,8 @@ mutagen>=1.47.0            # Audio metadata fallback (when ffprobe unavailable)
 
 # Testing
 pytest>=8.2.0
+
+# Frontend UI
+streamlit>=1.35.0
+requests>=2.31.0
 httpx>=0.27.0             # TestClient transport for FastAPI

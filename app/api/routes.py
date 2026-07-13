@@ -1,5 +1,5 @@
 """
-FastAPI routes exposing the ATLAS Router as a service.
+FastAPI routes exposing the ATLAS Neural Gateway as a service.
 
 Endpoints:
     POST /route          -> run the full routing pipeline, return a RoutingDecision
@@ -14,7 +14,7 @@ import threading
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Depends
 
 from app.api.schemas import (
     ExecutionPlanOut,
@@ -25,6 +25,7 @@ from app.api.schemas import (
     RouteResponse,
     StageRouteOut,
     TenantContextIn,
+    FeedbackRequest,
 )
 from app.config import (
     CALIBRATION_VERSION,
@@ -36,11 +37,13 @@ from app.config import (
     ROUTER_VERSION,
     SCORING_VERSION,
     TELEMETRY_SNAPSHOT_VERSION,
+    ADMIN_API_KEY,
+    ALLOW_SERVER_FILE_PATHS,
 )
 from app.core.formatting import format_decision_summary
-from app.core.llm_domain_parser import hybrid_tiebreaker_parser
+from app.core.llm_parser import call_llm_parser
 from app.core.router import record_outcome, route
-from app.core.database import get_all_models, get_model, upsert_model, delete_model
+from app.core.database import get_all_models, get_model, upsert_model, delete_model, add_feedback
 from app.models.schemas import RequestConstraints, TenantContext
 
 router = APIRouter()
@@ -48,6 +51,14 @@ router = APIRouter()
 # A threading lock to protect read-modify-write cycles in /outcome and /models.
 # For multi-worker deployments, this should be a distributed lock or handled natively in SQL.
 _write_lock = threading.Lock()
+
+
+def _require_admin(x_atlas_admin_key: Optional[str] = Header(default=None)) -> None:
+    """Protect mutable control-plane endpoints with a configured secret."""
+    if not ADMIN_API_KEY:
+        raise HTTPException(status_code=503, detail="Model mutation is disabled: ATLAS_ADMIN_API_KEY is not configured")
+    if x_atlas_admin_key != ADMIN_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid administrative API key")
 
 
 def _to_request_constraints(rc_in: Optional[RequestConstraintsIn]) -> RequestConstraints:
@@ -114,6 +125,11 @@ def _plan_to_out(plan) -> Optional[ExecutionPlanOut]:
 
 @router.post("/route", response_model=RouteResponse)
 def route_request(payload: RouteRequest) -> RouteResponse:
+    if payload.files and not ALLOW_SERVER_FILE_PATHS:
+        raise HTTPException(
+            status_code=400,
+            detail="Server-local file paths are disabled; upload artifacts to a managed store and pass trusted IDs instead.",
+        )
     try:
         decision = route(
                 prompt=payload.prompt,
@@ -127,7 +143,7 @@ def route_request(payload: RouteRequest) -> RouteResponse:
                 profile_name=payload.profile_name,
                 shadow_model=payload.shadow_model,
                 registry=get_all_models(),
-                llm_parser=hybrid_tiebreaker_parser if LLM_PARSER_ENABLED else None,
+                llm_parser=call_llm_parser,
             )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -142,7 +158,7 @@ def route_request(payload: RouteRequest) -> RouteResponse:
 
 
 @router.post("/outcome", status_code=202)
-def record_outcome_route(payload: OutcomeIn) -> Dict[str, str]:
+def record_outcome_route(payload: OutcomeIn, _: None = Depends(_require_admin)) -> Dict[str, str]:
     with _write_lock:
         models = get_all_models()
         if not any(m["name"] == payload.model_name for m in models):
@@ -189,7 +205,7 @@ def get_model_route(name: str) -> Dict[str, Any]:
 
 
 @router.post("/models", status_code=201)
-def create_or_update_model(payload: Dict[str, Any]) -> Dict[str, str]:
+def create_or_update_model(payload: Dict[str, Any], _: None = Depends(_require_admin)) -> Dict[str, str]:
     if "name" not in payload:
         raise HTTPException(status_code=400, detail="Model must have a 'name'")
     required_keys = ["provider", "tier", "ops_dynamic", "pricing", "context", "priors"]
@@ -203,7 +219,7 @@ def create_or_update_model(payload: Dict[str, Any]) -> Dict[str, str]:
 
 
 @router.delete("/models/{name}", status_code=204)
-async def delete_model_route(name: str) -> None:
+async def delete_model_route(name: str, _: None = Depends(_require_admin)) -> None:
     if not delete_model(name):
         raise HTTPException(status_code=404, detail=f"Unknown model: {name}")
 
@@ -224,3 +240,10 @@ async def versions() -> Dict[str, str]:
         "registry_version": REGISTRY_VERSION,
         "telemetry_snapshot_version": TELEMETRY_SNAPSHOT_VERSION,
     }
+
+
+@router.post("/feedback")
+async def submit_feedback(req: FeedbackRequest) -> Dict[str, str]:
+    """Submit parser correction feedback to update the dynamic memory bank."""
+    add_feedback(req.prompt, req.correct_family)
+    return {"status": "success", "message": "Feedback integrated into memory bank"}

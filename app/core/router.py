@@ -1,5 +1,5 @@
 """
-ATLAS Router — main orchestration.
+ATLAS Neural Gateway — main orchestration.
 
 route() is the single entry point: it runs the full staged pipeline
 (parse -> feasibility -> policy -> Bayesian quality -> Pareto reduction ->
@@ -21,6 +21,7 @@ from app.config import (
     CONFIDENCE_ABSTAIN_THRESHOLD,
     CONFIDENCE_ESCALATE_THRESHOLD,
     CONFIDENCE_HIGH_THRESHOLD,
+    PARSER_ESCALATE_THRESHOLD,
     REGISTRY_VERSION,
     ROUTER_VERSION,
 )
@@ -57,7 +58,7 @@ def route(
     registry: Optional[List[Dict[str, Any]]] = None,
     shadow_model: Optional[str] = None,
 ) -> RoutingDecision:
-    """Main entry point for the ATLAS Router. Returns a complete RoutingDecision."""
+    """Main entry point for the ATLAS Neural Gateway. Returns a complete RoutingDecision."""
     start_time = time.time()
     decision_id = str(uuid.uuid4())
     registry = registry if registry is not None else get_all_models()
@@ -140,17 +141,29 @@ def route(
     # ---- 7. Utility scoring ----
     effective_profile = choose_effective_profile(task, profile_name)
     scored = compute_utilities(frontier, task, effective_profile)
+    all_scored = compute_utilities(enriched, task, effective_profile)
 
     # ---- 8. Confidence estimation ----
     confidence_data = estimate_confidence(scored, task, effective_profile)
 
-    top_model_name = confidence_data["top_model"]
-    primary_model = next((m for m in scored if m["name"] == top_model_name), scored[0])
+    # The primary is always the highest expected-utility model. Thompson
+    # sampling quantifies uncertainty around that decision; it does not use a
+    # different scoring formula to choose a contradictory primary.
+    primary_model = scored[0]
+    selected_win_probability = confidence_data["win_probabilities"].get(primary_model["name"], 0.0)
+    other_probabilities = [
+        p for name, p in confidence_data["win_probabilities"].items()
+        if name != primary_model["name"]
+    ]
+    selected_margin = selected_win_probability - max(other_probabilities, default=0.0)
+    confidence_data["selected_model"] = primary_model["name"]
+    confidence_data["selected_confidence"] = selected_win_probability
+    confidence_data["selected_margin"] = selected_margin
     fallback_models = [m for m in scored if m["name"] != primary_model["name"]][:3]
 
     # ---- Verifier planning ----
     verifier_models = choose_verifier_models(
-        all_models=feasible,
+        all_models=gated,
         verifier_types=policy.require_verifier_types,
         selected_model_name=primary_model["name"],
         max_verifiers=2,
@@ -165,24 +178,58 @@ def route(
     plan = single_plan
     if not task.request_constraints.must_use_single_model and len(task.required_stages) >= 2:
         multi_plan = generate_multi_stage_plan(
-            models=scored, task=task, confidence_data=confidence_data,
+            models=all_scored, task=task, confidence_data=confidence_data,
             verifier_models=verifier_models, policy=policy,
             profile_name=effective_profile,
         )
         if multi_plan and multi_plan.expected_quality >= single_plan.expected_quality + 0.03:
             plan = multi_plan
 
+    # A verifier or sequential multi-stage plan can push the end-to-end cost
+    # and latency beyond constraints even if each individual model passed
+    # feasibility. Never return an executable plan that breaks its SLA.
+    rc = task.request_constraints
+    plan_breaks_sla = (
+        (rc.max_cost_usd is not None and plan.expected_cost_usd > rc.max_cost_usd)
+        or (rc.max_latency_ms is not None and plan.expected_latency_ms > rc.max_latency_ms)
+    )
+    if plan_breaks_sla:
+        return RoutingDecision(
+            selected_plan=None,
+            abstain=True,
+            escalate_to_human=True,
+            decision_record={
+                "decision_id": decision_id,
+                "status": "plan_exceeds_hard_constraints",
+                "router_version": ROUTER_VERSION,
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "elapsed_ms": (time.time() - start_time) * 1000,
+                "task_summary": {
+                    "primary_family": task.primary_family,
+                    "domain": task.domain,
+                    "complexity": task.complexity,
+                },
+                "plan_constraints": {
+                    "expected_cost_usd": plan.expected_cost_usd,
+                    "expected_latency_ms": plan.expected_latency_ms,
+                    "max_cost_usd": rc.max_cost_usd,
+                    "max_latency_ms": rc.max_latency_ms,
+                },
+            },
+        )
+
     # ---- 10. Abstention and escalation ladder ----
     abstain = False
     escalate = policy.must_escalate
-    if confidence_data["top_confidence"] < CONFIDENCE_ABSTAIN_THRESHOLD:
+    minimum_confidence = max(CONFIDENCE_ABSTAIN_THRESHOLD, task.request_constraints.min_confidence)
+    if selected_win_probability < minimum_confidence:
         abstain = True
         escalate = True
-    elif confidence_data["top_confidence"] < CONFIDENCE_ESCALATE_THRESHOLD:
+    elif selected_win_probability < CONFIDENCE_ESCALATE_THRESHOLD:
         escalate = True
-    elif confidence_data["top_confidence"] < task.request_constraints.min_confidence:
+    if task.parser_confidence < PARSER_ESCALATE_THRESHOLD:
         escalate = True
-    if task.risk_tier == "high" and confidence_data["top_confidence"] < CONFIDENCE_HIGH_THRESHOLD:
+    if task.risk_tier == "high" and selected_win_probability < CONFIDENCE_HIGH_THRESHOLD:
         escalate = True
 
     # ---- Shadow routing hook ----
@@ -240,8 +287,9 @@ def route(
             "policy_verifier_types": policy.require_verifier_types,
         },
         "confidence": {
-            "top_confidence": confidence_data["top_confidence"],
-            "margin": confidence_data["margin"],
+            "top_confidence": selected_win_probability,
+            "margin": selected_margin,
+            "winning_model": primary_model["name"],
             "win_probabilities": confidence_data["win_probabilities"],
             "min_confidence_threshold": task.request_constraints.min_confidence,
         },
@@ -260,8 +308,8 @@ def route(
             "primary_model": primary_model["name"],
             "task_family": task.primary_family,
             "domain": task.domain,
-            "confidence": confidence_data["top_confidence"],
-            "note": "Record outcome to update priors via Bayesian learning.",
+            "confidence": selected_win_probability,
+            "note": "Record authenticated execution outcomes to update priors via Bayesian learning.",
         },
     }
 
@@ -316,13 +364,14 @@ def record_outcome(
                 ev["user_acceptance_sum"] += 1.0
             if safety_flagged:
                 ev["safety_flags"] += 1
-            # Update family specific prior
+            # Update family-specific and global priors once per observation.
+            # Quality is a bounded soft signal, while success remains the
+            # dominant outcome label.
+            observation = 0.7 * float(bool(success)) + 0.3 * quality_score
             fam_prior = model["priors"]["task_family"].get(task_family)
             if fam_prior:
-                if success:
-                    fam_prior["alpha"] += 1
-                else:
-                    fam_prior["beta"] += 1
+                fam_prior["alpha"] += observation
+                fam_prior["beta"] += 1.0 - observation
                 
                 # Decay to prevent stale priors dominating
                 if fam_prior["alpha"] + fam_prior["beta"] > 200:
@@ -331,10 +380,8 @@ def record_outcome(
             
             # Update global prior
             glob_prior = model["priors"]["global"]
-            if success:
-                glob_prior["alpha"] += 1
-            else:
-                glob_prior["beta"] += 1
+            glob_prior["alpha"] += observation
+            glob_prior["beta"] += 1.0 - observation
             if glob_prior["alpha"] + glob_prior["beta"] > 500:
                 glob_prior["alpha"] = max(glob_prior["alpha"] * 0.95, 1.0)
                 glob_prior["beta"] = max(glob_prior["beta"] * 0.95, 1.0)

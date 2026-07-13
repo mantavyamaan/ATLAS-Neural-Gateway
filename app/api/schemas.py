@@ -9,24 +9,32 @@ internals, and vice versa.
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class RequestConstraintsIn(BaseModel):
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class RequestConstraintsIn(StrictModel):
     allowed_providers: Optional[List[str]] = None
     disallowed_providers: Optional[List[str]] = None
     allowed_tiers: Optional[List[str]] = None
     no_open_weight: bool = False
     required_region: Optional[str] = None
-    max_cost_usd: Optional[float] = None
-    max_latency_ms: Optional[float] = None
+    max_cost_usd: Optional[float] = Field(default=None, gt=0)
+    max_latency_ms: Optional[float] = Field(default=None, gt=0)
     mandatory_verifier: bool = False
     no_web_access: bool = False
     must_use_single_model: bool = False
-    min_confidence: float = 0.0
+    min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    require_json: bool = False
+    require_ocr: bool = False
+    require_web_search: bool = False
+    require_citations: bool = False
 
 
-class TenantContextIn(BaseModel):
+class TenantContextIn(StrictModel):
     tenant_id: Optional[str] = None
     tenant_name: Optional[str] = None
     allowed_models: Optional[List[str]] = None
@@ -34,14 +42,14 @@ class TenantContextIn(BaseModel):
     policy_overlay: Optional[Dict[str, Any]] = None
 
 
-class RouteRequest(BaseModel):
+class RouteRequest(StrictModel):
     prompt: str = Field(..., description="The user's raw request/prompt.")
     input_formats: Optional[List[str]] = Field(
         default=None,
         description="Modalities present, e.g. ['pdf','text']. Ignored if `files` is set.",
     )
-    estimated_tokens: int = 2000
-    estimated_output_tokens: int = 1200
+    estimated_tokens: int = Field(default=2000, ge=1, le=2_000_000)
+    estimated_output_tokens: int = Field(default=1200, ge=1, le=500_000)
     artifact_hints: Optional[List[Dict[str, Any]]] = Field(
         default=None,
         description="Ground-truth overrides per format, e.g. [{'format':'pdf','page_count':45}].",
@@ -55,8 +63,9 @@ class RouteRequest(BaseModel):
     profile_name: str = "balanced"
     shadow_model: Optional[str] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
             "example": {
                 "prompt": "Implement a concurrent web crawler in Python with rate limiting and structured JSON output.",
                 "input_formats": ["text"],
@@ -64,10 +73,11 @@ class RouteRequest(BaseModel):
                 "estimated_output_tokens": 4000,
                 "profile_name": "balanced",
             }
-        }
+        },
+    )
 
 
-class StageRouteOut(BaseModel):
+class StageRouteOut(StrictModel):
     stage_id: int
     stage_name: str
     selected_model: str
@@ -79,7 +89,7 @@ class StageRouteOut(BaseModel):
     explanation: str
 
 
-class ExecutionPlanOut(BaseModel):
+class ExecutionPlanOut(StrictModel):
     plan_id: str
     plan_type: str
     selected_model: Optional[str]
@@ -97,7 +107,7 @@ class ExecutionPlanOut(BaseModel):
     trace: Dict[str, Any]
 
 
-class RouteResponse(BaseModel):
+class RouteResponse(StrictModel):
     abstain: bool
     escalate_to_human: bool
     selected_plan: Optional[ExecutionPlanOut]
@@ -105,18 +115,18 @@ class RouteResponse(BaseModel):
     summary_text: str
 
 
-class OutcomeIn(BaseModel):
+class OutcomeIn(StrictModel):
     model_name: str
     task_family: str
     success: bool
-    quality_score: float = 0.0
-    latency_ms: float = 0.0
-    cost_usd: float = 0.0
+    quality_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    latency_ms: float = Field(default=0.0, ge=0.0)
+    cost_usd: float = Field(default=0.0, ge=0.0)
     user_accepted: bool = True
     safety_flagged: bool = False
 
 
-class ModelSummaryOut(BaseModel):
+class ModelSummaryOut(StrictModel):
     name: str
     provider: str
     tier: str
@@ -125,3 +135,9 @@ class ModelSummaryOut(BaseModel):
     context_window: int
     relative_cost_score: float
     incident_status: str
+
+
+class FeedbackRequest(BaseModel):
+    """Payload for submitting feedback on parser routing."""
+    prompt: str = Field(..., description="The user's original prompt.")
+    correct_family: str = Field(..., description="The correct routing family.")

@@ -223,10 +223,6 @@ def runtime_health_score(model: Dict[str, Any]) -> float:
 def effective_prior(model: Dict[str, Any], family: str) -> Tuple[float, float]:
     fam = model["priors"]["task_family"].get(family, model["priors"]["global"])
     alpha, beta = float(fam["alpha"]), float(fam["beta"])
-    ev = model.get("evaluation", {})
-    if ev.get("samples", 0) > 0:
-        alpha += ev.get("wins", 0)
-        beta += ev.get("losses", 0)
     return alpha, beta
 
 
@@ -475,14 +471,13 @@ def estimate_confidence(
             uncertainty = m["q"]["uncertainty"]
             latency_score_val = static_latency_score(m)
             riskfit = risk_support(m, task)
+            # Sample only the quality term while preserving the exact same
+            # utility baseline used to rank primary and fallback candidates.
+            # This avoids selecting with one objective and reporting
+            # confidence from a different one.
             su = (
-                w["quality"] * sq
-                - w["uncertainty"] * uncertainty
-                - w["cost"] * static_cost_score(m)
-                + w["latency"] * latency_score_val
-                + w["reliability"] * reliability_score(m)
-                + w["riskfit"] * riskfit
-                + w["runtime"] * runtime_health_score(m)
+                m["u"]["expected_utility"]
+                + w["quality"] * (sq - m["q"]["runtime_adjusted_mean"])
             )
             sampled_utilities.append((m["name"], su))
         winner = max(sampled_utilities, key=lambda x: x[1])[0]

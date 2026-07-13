@@ -7,6 +7,9 @@ import sqlite3
 fd, temp_db_path = tempfile.mkstemp(suffix=".db")
 os.close(fd)
 os.environ["ATLAS_DB_PATH"] = temp_db_path
+# Unit tests intentionally use deterministic fixture data. Production defaults
+# to rejecting this data unless it carries measured/curated evidence.
+os.environ["ATLAS_REQUIRE_MEASURED_EVIDENCE"] = "false"
 
 from app.core.database import init_db, get_all_models, upsert_model
 from app.models.registry_builder import build_registry

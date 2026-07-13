@@ -21,7 +21,7 @@ from app.models.registry_builder import (
     _build_safety,
     _routing_meta,
     _build_verifier_fit,
-    _seeded_rng,
+    _build_verifier_fit,
 )
 
 logger = logging.getLogger("atlas.openrouter_sync")
@@ -64,15 +64,14 @@ def map_model_to_registry(or_model: Dict[str, Any], real_benchmarks: Dict[str, A
     provider = parts[0] if len(parts) > 1 else "Unknown"
     name = parts[-1] if len(parts) > 1 else full_id
 
-    # The rng here provides a deterministic baseline for missing priors/benchmarks 
-    # based on the model name.
-    rng = _seeded_rng(name, salt="atlas-registry-v1")
     tier = _classify_tier(name)
-    perf = _build_performance(name, provider, tier, rng)
-    domains = _build_domains(provider, name, tier, rng)
+    perf = _build_performance(name, provider, tier)
+    domains = _build_domains(provider, name, tier)
     
     # Inject ground-truth benchmarks if available
+    has_evidence = False
     if full_id in real_benchmarks:
+        has_evidence = True
         real_data = real_benchmarks[full_id]
         if "performance" in real_data:
             perf.update(real_data["performance"])
@@ -98,6 +97,9 @@ def map_model_to_registry(or_model: Dict[str, Any], real_benchmarks: Dict[str, A
         "tier": tier,
         "status": "active",
         "api_available": True,
+        "evidence": {
+            "eligible_for_auto_route": has_evidence
+        },
         "open_weight": _is_open_weight(provider, name),
         "allowed_regions": ["global"],
         "modalities": _build_modalities(name, tier),
@@ -108,16 +110,23 @@ def map_model_to_registry(or_model: Dict[str, Any], real_benchmarks: Dict[str, A
             "output_cost": round(output_cost, 6),
             "relative_cost_score": round(relative_cost_score, 3),
         },
-        "ops_static": _build_ops_static(tier, rng),
-        "ops_dynamic": _build_ops_dynamic(tier, rng),
-        "priors": _build_priors(name, rng),
+        "ops_static": _build_ops_static(tier),
+        "ops_dynamic": _build_ops_dynamic(tier),
+        "priors": _build_priors(name),
         "evaluation": _build_evaluation(),  # Blank slate
         "performance": perf,
-        "benchmarks": _build_benchmarks(perf, rng),
+        "benchmarks": _build_benchmarks(perf),
         "domains": domains,
-        "safety": _build_safety(tier, rng),
+        "safety": _build_safety(tier),
         "routing": _routing_meta(tier == "Economy"),
-        "verifier_fit": _build_verifier_fit(tier, rng),
+        "verifier_fit": _build_verifier_fit(tier),
+        "evidence": {
+            "source": "curated_benchmark" if full_id in real_benchmarks else "unverified_provider_metadata",
+            "eligible_for_auto_route": full_id in real_benchmarks,
+            "evaluated_task_families": sorted(
+                (real_benchmarks.get(full_id, {}).get("performance") or {}).keys()
+            ),
+        },
     }
     return entry
 
@@ -144,7 +153,7 @@ def sync_openrouter_models() -> None:
     updated_models = []
     for or_model in or_models:
         model_id = or_model.get("id", "")
-        # Atlas Router should route to base models, not other meta-routers
+        # ATLAS Neural Gateway should route to base models, not other meta-routers
         if model_id.startswith("openrouter/"):
             continue
             

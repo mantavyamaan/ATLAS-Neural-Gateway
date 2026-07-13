@@ -12,6 +12,8 @@ from copy import deepcopy
 from typing import Any, Dict, List, Tuple
 
 from app.core.scoring import estimate_request_cost_usd
+from app.core.scoring import estimate_request_latency_ms
+from app.config import REQUIRE_MEASURED_EVIDENCE
 from app.models.schemas import TaskFeatures
 
 
@@ -29,6 +31,10 @@ def feasibility_filter(
 
         if model.get("status") != "active" or not model.get("api_available", False):
             reasons[name] = "inactive_or_no_api"
+            continue
+        evidence = model.get("evidence", {})
+        if REQUIRE_MEASURED_EVIDENCE and not evidence.get("eligible_for_auto_route", False):
+            reasons[name] = "insufficient_measured_evidence"
             continue
         if model["ops_dynamic"].get("incident_status") == "red":
             reasons[name] = "runtime_incident_red"
@@ -81,6 +87,12 @@ def feasibility_filter(
         if task.requires_citations and not caps.get("citation_support", False):
             reasons[name] = "missing_citation_support"
             continue
+        if task.requires_image_generation and not caps.get("image_generation", False):
+            reasons[name] = "missing_image_generation"
+            continue
+        if task.requires_video_generation and not caps.get("video_generation", False):
+            reasons[name] = "missing_video_generation"
+            continue
         if ctx["window"] < task.min_context_window:
             reasons[name] = "insufficient_context_window"
             continue
@@ -91,6 +103,10 @@ def feasibility_filter(
             continue
         if tc.budget_remaining_usd is not None and est_cost > tc.budget_remaining_usd:
             reasons[name] = f"exceeds_tenant_remaining_budget:{est_cost:.4f}"
+            continue
+        est_latency = estimate_request_latency_ms(model, task)
+        if rc.max_latency_ms is not None and est_latency > rc.max_latency_ms:
+            reasons[name] = f"estimated_latency_exceeds_sla:{est_latency:.1f}"
             continue
 
         feasible.append(deepcopy(model))

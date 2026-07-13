@@ -11,7 +11,8 @@ add/remove a model without touching scoring logic.
 MODELS = {
     "OpenAI": [
         "GPT-5.5", "GPT-5.5-Thinking", "GPT-5.5-Instant", "GPT-5.4",
-        "GPT-5.4-Mini", "GPT-5", "GPT-4o", "GPT-4o-Mini", "o4-Mini", "o3"
+        "GPT-5.4-Mini", "GPT-5", "GPT-4o", "GPT-4o-Mini", "o4-Mini", "o3",
+        "Sora", "DALL-E-3"
     ],
     "Anthropic": [
         "Claude-Opus-4.8", "Claude-Opus-4.7", "Claude-Opus-4.6",
@@ -77,4 +78,16 @@ MODELS = {
     "Baidu": [
         "ERNIE-4.5", "ERNIE-X1"
     ],
+    "Midjourney": [
+        "Midjourney-v6", "Midjourney-v5"
+    ],
+    "Runway": [
+        "Runway-Gen3", "Runway-Gen2"
+    ],
+    "Black Forest Labs": [
+        "Flux-1-Pro", "Flux-1-Dev"
+    ],
+    "Pika": [
+        "Pika-1"
+    ]
 }

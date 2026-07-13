@@ -66,6 +66,13 @@ def evaluate_policy(task: TaskFeatures) -> PolicyDecision:
         notes.append("High-risk task restricted to frontier-grade models.")
         restricted_to_tiers.append("Frontier")
 
+    # Complex work needs a stronger default than a low-cost single pass. This
+    # is a policy floor, not a soft utility preference.
+    if task.complexity == "high" and task.primary_family in {"coding", "agent", "reasoning"}:
+        notes.append("High-complexity task requires frontier capability and consistency review.")
+        restricted_to_tiers.append("Frontier")
+        require_verifier_types.append("consistency_review")
+
     # Tenant overlays
     if overlay.get("frontier_only", False):
         restricted_to_tiers.append("Frontier")

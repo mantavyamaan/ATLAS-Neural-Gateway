@@ -25,7 +25,7 @@ def _get_connection() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """Create the models table if it does not exist."""
+    """Create the required tables if they do not exist."""
     with _lock:
         conn = _get_connection()
         conn.execute(
@@ -34,6 +34,13 @@ def init_db() -> None:
             "  provider TEXT,"
             "  tier TEXT,"
             "  data TEXT"
+            ")"
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS parser_feedback ("
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "  prompt TEXT UNIQUE,"
+            "  correct_family TEXT"
             ")"
         )
         conn.commit()
@@ -99,3 +106,35 @@ def delete_model(name: str) -> bool:
         cursor = conn.execute("DELETE FROM models WHERE name = ?", (name,))
         conn.commit()
     return cursor.rowcount > 0
+
+
+def add_feedback(prompt: str, correct_family: str) -> None:
+    """Add a feedback example to the memory bank."""
+    with _lock:
+        conn = _get_connection()
+        conn.execute(
+            "INSERT OR REPLACE INTO parser_feedback (prompt, correct_family) VALUES (?, ?)",
+            (prompt, correct_family)
+        )
+        conn.commit()
+
+
+def get_feedback_examples(limit: int = 10) -> List[Dict[str, str]]:
+    """Retrieve random or recent feedback examples to inject into the parser."""
+    with _lock:
+        conn = _get_connection()
+        # Order by random to get diverse examples in the prompt, or by id DESC for most recent
+        rows = conn.execute(
+            "SELECT prompt, correct_family FROM parser_feedback ORDER BY RANDOM() LIMIT ?", (limit,)
+        ).fetchall()
+    return [{"prompt": row[0], "correct_family": row[1]} for row in rows]
+
+
+def get_all_feedback() -> List[Dict[str, str]]:
+    """Retrieve all feedback examples to inject into the heuristic parser's dynamic vocabulary."""
+    with _lock:
+        conn = _get_connection()
+        rows = conn.execute(
+            "SELECT prompt, correct_family FROM parser_feedback"
+        ).fetchall()
+    return [{"prompt": row[0], "correct_family": row[1]} for row in rows]

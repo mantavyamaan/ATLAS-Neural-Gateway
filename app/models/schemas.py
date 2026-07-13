@@ -55,6 +55,10 @@ class RequestConstraints:
     no_web_access: bool = False
     must_use_single_model: bool = False
     min_confidence: float = 0.0
+    require_json: bool = False
+    require_ocr: bool = False
+    require_web_search: bool = False
+    require_citations: bool = False
 
 
 @dataclass
@@ -119,6 +123,10 @@ class TaskFeatures:
     requires_web_search: bool
     requires_ocr: bool
     requires_citations: bool
+    requires_image_generation: bool
+    requires_video_generation: bool
+    
+
     requires_verifier: bool
     min_context_window: int
 

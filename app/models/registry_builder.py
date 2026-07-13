@@ -137,19 +137,19 @@ def _base_quality_for_tier(tier: str) -> float:
     return {"Frontier": 0.86, "Mid": 0.74, "Economy": 0.62}[tier]
 
 
-def _pricing_for_tier(tier: str, rng: _Deterministic) -> Dict[str, float]:
+def _pricing_for_tier(tier: str) -> Dict[str, float]:
     if tier == "Frontier":
-        input_cost = rng.uniform(3.0, 15.0)
-        output_cost = input_cost * rng.uniform(3.5, 6.0)
-        relative_cost_score = rng.uniform(0.65, 1.0)
+        input_cost = 5.0
+        output_cost = 15.0
+        relative_cost_score = 0.8
     elif tier == "Mid":
-        input_cost = rng.uniform(0.5, 3.0)
-        output_cost = input_cost * rng.uniform(3.0, 5.0)
-        relative_cost_score = rng.uniform(0.30, 0.65)
+        input_cost = 0.5
+        output_cost = 1.5
+        relative_cost_score = 0.4
     else:
-        input_cost = rng.uniform(0.03, 0.5)
-        output_cost = input_cost * rng.uniform(2.5, 4.5)
-        relative_cost_score = rng.uniform(0.05, 0.30)
+        input_cost = 0.1
+        output_cost = 0.3
+        relative_cost_score = 0.1
     return {
         "input_cost": round(input_cost, 4),
         "output_cost": round(output_cost, 4),
@@ -157,21 +157,20 @@ def _pricing_for_tier(tier: str, rng: _Deterministic) -> Dict[str, float]:
     }
 
 
-def _context_window_for_tier(tier: str, rng: _Deterministic) -> int:
+def _context_window_for_tier(tier: str) -> int:
     if tier == "Frontier":
-        return int(rng.uniform(200_000, 1_000_000))
+        return 2_000_000
     if tier == "Mid":
-        return int(rng.uniform(64_000, 256_000))
-    return int(rng.uniform(8_000, 64_000))
+        return 32_000
+    return 8_000
 
 
-def _build_performance(name: str, provider: str, tier: str, rng: _Deterministic) -> Dict[str, float]:
+def _build_performance(name: str, provider: str, tier: str) -> Dict[str, float]:
     base = _base_quality_for_tier(tier)
     low = name.lower()
     perf = {}
     for key in PERF_KEYS:
-        jitter = rng.uniform(-0.12, 0.12)
-        perf[key] = round(min(max(base + jitter, 0.05), 0.99), 3)
+        perf[key] = round(min(max(base, 0.05), 0.99), 3)
     # Specialization boosts by name/provider hints.
     if any(h in low for h in ["coder", "codestral", "code"]):
         perf["coding"] = round(min(perf["coding"] + 0.15, 0.99), 3)
@@ -194,7 +193,7 @@ def _build_performance(name: str, provider: str, tier: str, rng: _Deterministic)
     return perf
 
 
-def _build_benchmarks(base_perf: Dict[str, float], rng: _Deterministic) -> Dict[str, float]:
+def _build_benchmarks(base_perf: Dict[str, float]) -> Dict[str, float]:
     mapping = {
         "swe_bench": "coding", "humaneval": "coding", "gpqa": "reasoning",
         "mmlu": "reasoning", "aime": "mathematics", "mmmu": "vision_understanding",
@@ -202,14 +201,13 @@ def _build_benchmarks(base_perf: Dict[str, float], rng: _Deterministic) -> Dict[
     }
     out = {}
     for bench, perf_key in mapping.items():
-        jitter = rng.uniform(-0.05, 0.05)
-        out[bench] = round(min(max(base_perf.get(perf_key, 0.6) + jitter, 0.05), 0.99), 3)
+        out[bench] = round(min(max(base_perf.get(perf_key, 0.6), 0.05), 0.99), 3)
     return out
 
 
-def _build_domains(provider: str, name: str, tier: str, rng: _Deterministic) -> Dict[str, float]:
+def _build_domains(provider: str, name: str, tier: str) -> Dict[str, float]:
     base = _base_quality_for_tier(tier)
-    domains = {k: round(min(max(base + rng.uniform(-0.10, 0.10), 0.05), 0.95), 3) for k in DOMAIN_KEYS}
+    domains = {k: round(min(max(base, 0.05), 0.95), 3) for k in DOMAIN_KEYS}
     domains["general"] = round(min(base + 0.05, 0.97), 3)
     if tier == "Frontier":
         for k in ("legal", "medical", "finance"):
@@ -231,55 +229,43 @@ def _build_domains(provider: str, name: str, tier: str, rng: _Deterministic) -> 
     return domains
 
 
-def _build_safety(tier: str, rng: _Deterministic) -> Dict[str, float]:
+def _build_safety(tier: str) -> Dict[str, float]:
     base = {"Frontier": 0.90, "Mid": 0.80, "Economy": 0.72}[tier]
-    safety = {k: round(min(max(base + rng.uniform(-0.08, 0.06), 0.4), 0.98) , 3) for k in SAFETY_KEYS}
+    safety = {k: round(min(max(base, 0.4), 0.98) , 3) for k in SAFETY_KEYS}
     return safety
 
 
-def _build_verifier_fit(tier: str, rng: _Deterministic) -> Dict[str, float]:
+def _build_verifier_fit(tier: str) -> Dict[str, float]:
     base = {"Frontier": 0.85, "Mid": 0.72, "Economy": 0.55}[tier]
-    return {k: round(min(max(base + rng.uniform(-0.10, 0.08), 0.2), 0.97), 3) for k in VERIFIER_KEYS}
+    return {k: round(min(max(base, 0.2), 0.97), 3) for k in VERIFIER_KEYS}
 
 
-def _build_ops_static(tier: str, rng: _Deterministic) -> Dict[str, float]:
-    latency_score = {"Frontier": rng.uniform(0.45, 0.70),
-                       "Mid": rng.uniform(0.60, 0.85),
-                       "Economy": rng.uniform(0.80, 0.97)}[tier]
-    reliability = round(rng.uniform(0.90, 0.995), 4)
+def _build_ops_static(tier: str) -> Dict[str, float]:
+    latency_score = {"Frontier": 0.5, "Mid": 0.7, "Economy": 0.9}[tier]
+    reliability = 0.99
     return {"latency_score": round(latency_score, 3), "reliability": reliability}
 
 
-def _build_ops_dynamic(tier: str, rng: _Deterministic) -> Dict[str, Any]:
-    base_latency_ms = {"Frontier": rng.uniform(1800, 4500),
-                         "Mid": rng.uniform(700, 2000),
-                         "Economy": rng.uniform(200, 900)}[tier]
-    incident_roll = rng.uniform(0, 1)
-    incident_status = "green" if incident_roll < 0.90 else ("yellow" if incident_roll < 0.97 else "orange")
+def _build_ops_dynamic(tier: str) -> Dict[str, Any]:
     return {
-        "recent_latency_ms": round(base_latency_ms, 1),
-        "recent_failure_rate": round(rng.uniform(0.001, 0.04), 4),
-        "current_availability": round(rng.uniform(0.97, 0.999), 4),
-        "rate_limit_pressure": round(rng.uniform(0.0, 0.35), 3),
-        "queue_pressure": round(rng.uniform(0.0, 0.30), 3),
-        "incident_status": incident_status,
-        "budget_pressure": round(rng.uniform(0.0, 0.30), 3),
-        "telemetry_freshness_sec": int(rng.uniform(5, 180)),
+        "recent_latency_ms": {"Frontier": 3000.0, "Mid": 1200.0, "Economy": 500.0}[tier],
+        "recent_failure_rate": 0.01,
+        "current_availability": 0.999,
+        "rate_limit_pressure": 0.1,
+        "queue_pressure": 0.1,
+        "incident_status": "green",
+        "budget_pressure": 0.1,
+        "telemetry_freshness_sec": 60,
     }
 
 
-def _build_priors(name: str, rng: _Deterministic) -> Dict[str, Any]:
-    g_alpha = rng.uniform(8, 20)
-    g_beta = rng.uniform(2, 10)
+def _build_priors(name: str) -> Dict[str, Any]:
     task_family = {}
     for fam in ["coding", "reasoning", "mathematics", "chat", "vision", "ocr",
                 "document_qa", "summarization", "translation", "agent", "audio"]:
-        task_family[fam] = {
-            "alpha": round(rng.uniform(4, 16), 2),
-            "beta": round(rng.uniform(1, 8), 2),
-        }
+        task_family[fam] = {"alpha": 10.0, "beta": 5.0}
     return {
-        "global": {"alpha": round(g_alpha, 2), "beta": round(g_beta, 2)},
+        "global": {"alpha": 14.0, "beta": 6.0},
         "task_family": task_family,
     }
 
@@ -317,6 +303,8 @@ def _build_capabilities(name: str, tier: str) -> Dict[str, bool]:
         "web_search": tier == "Frontier" or "gpt" in low or "gemini" in low or "grok" in low,
         "ocr": _build_modalities(name, tier)["image"] or _build_modalities(name, tier)["pdf"],
         "citation_support": tier in ("Frontier", "Mid"),
+        "image_generation": any(h in low for h in ["dall-e", "stable-diffusion", "imagen", "midjourney", "flux"]),
+        "video_generation": any(h in low for h in ["sora", "runway", "pika", "kling"]),
     }
 
 
@@ -328,9 +316,8 @@ def build_registry() -> List[Dict[str, Any]]:
     registry: List[Dict[str, Any]] = []
     for provider, names in MODELS.items():
         for name in names:
-            rng = _seeded_rng(name, salt="atlas-registry-v1")
             tier = _classify_tier(name)
-            perf = _build_performance(name, provider, tier, rng)
+            perf = _build_performance(name, provider, tier)
             entry: Dict[str, Any] = {
                 "name": name,
                 "provider": provider,
@@ -341,18 +328,26 @@ def build_registry() -> List[Dict[str, Any]]:
                 "allowed_regions": ["global"],
                 "modalities": _build_modalities(name, tier),
                 "capabilities": _build_capabilities(name, tier),
-                "context": {"window": _context_window_for_tier(tier, rng)},
-                "pricing": _pricing_for_tier(tier, rng),
-                "ops_static": _build_ops_static(tier, rng),
-                "ops_dynamic": _build_ops_dynamic(tier, rng),
-                "priors": _build_priors(name, rng),
+                "context": {"window": _context_window_for_tier(tier)},
+                "pricing": _pricing_for_tier(tier),
+                "ops_static": _build_ops_static(tier),
+                "ops_dynamic": _build_ops_dynamic(tier),
+                "priors": _build_priors(name),
                 "evaluation": _build_evaluation(),
                 "performance": perf,
-                "benchmarks": _build_benchmarks(perf, rng),
-                "domains": _build_domains(provider, name, tier, rng),
-                "safety": _build_safety(tier, rng),
+                "benchmarks": _build_benchmarks(perf),
+                "domains": _build_domains(provider, name, tier),
+                "safety": _build_safety(tier),
                 "routing": _routing_meta(tier == "Economy"),
-                "verifier_fit": _build_verifier_fit(tier, rng),
+                "verifier_fit": _build_verifier_fit(tier),
+                # These fields are intentionally synthetic and are suitable
+                # only for local development. Production feasibility rejects
+                # them unless explicitly configured otherwise.
+                "evidence": {
+                    "source": "synthetic_development_fixture",
+                    "eligible_for_auto_route": False,
+                    "evaluated_task_families": [],
+                },
             }
             registry.append(entry)
     return registry

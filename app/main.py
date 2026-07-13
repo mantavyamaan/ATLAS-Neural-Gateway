@@ -1,5 +1,5 @@
 """
-ATLAS Router service entrypoint.
+ATLAS Neural Gateway service entrypoint.
 
 Run locally with:
     uvicorn app.main:app --reload --port 8000
@@ -10,8 +10,8 @@ Then visit http://127.0.0.1:8000/docs for interactive API docs.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import router as atlas_router
-from app.config import ROUTER_VERSION
+from app.api.routes import router as atlas_gateway
+from app.config import CORS_ORIGINS, ROUTER_VERSION
 
 from contextlib import asynccontextmanager
 
@@ -26,12 +26,12 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(
-    title="ATLAS Router",
+    title="ATLAS Neural Gateway",
     description=(
-        "Adaptive Task and LLM Allocation System — a provider-agnostic LLM "
-        "routing control plane. Decides which model or execution plan should "
-        "handle a request under real operational constraints (governance, "
-        "cost, latency, uncertainty, SLAs)."
+        "Adaptive Task and LLM Allocation System — a complete, end-to-end AI agent "
+        "and neural routing gateway. ATLAS decides which model should handle a request "
+        "using Bayesian inference, and acts as an intelligent proxy to actively generate "
+        "and stream the final response back to the user."
     ),
     version=ROUTER_VERSION,
     lifespan=lifespan,
@@ -39,19 +39,19 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(atlas_router, tags=["atlas-router"])
+app.include_router(atlas_gateway, tags=["atlas-gateway"])
 
 
 @app.get("/", tags=["meta"])
 async def root():
     return {
-        "service": "ATLAS Router",
+        "service": "ATLAS Neural Gateway",
         "version": ROUTER_VERSION,
         "docs": "/docs",
     }

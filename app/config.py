@@ -1,5 +1,5 @@
 """
-ATLAS Router — system constants and versioning.
+ATLAS Neural Gateway — system constants and versioning.
 
 Every production routing system must be reproducible under audit. Each
 independently-evolving component carries its own version stamp so that a
@@ -78,9 +78,29 @@ def _float_env(name: str, default: float) -> float:
         return default
 
 
+def _bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 CONFIDENCE_ABSTAIN_THRESHOLD = _float_env("ATLAS_ABSTAIN_THRESHOLD", 0.40)
 CONFIDENCE_ESCALATE_THRESHOLD = _float_env("ATLAS_ESCALATE_THRESHOLD", 0.55)
 CONFIDENCE_HIGH_THRESHOLD = _float_env("ATLAS_HIGH_THRESHOLD", 0.75)
+PARSER_ESCALATE_THRESHOLD = _float_env("ATLAS_PARSER_ESCALATE_THRESHOLD", 0.65)
+
+# Safe-by-default production behaviour. Entries derived only from name-based
+# heuristics are useful for local demos, but must never be presented as an
+# evidence-based automatic production choice.
+REQUIRE_MEASURED_EVIDENCE = _bool_env("ATLAS_REQUIRE_MEASURED_EVIDENCE", True)
+ALLOW_SERVER_FILE_PATHS = _bool_env("ATLAS_ALLOW_SERVER_FILE_PATHS", False)
+ADMIN_API_KEY = os.getenv("ATLAS_ADMIN_API_KEY")
+CORS_ORIGINS = [
+    origin.strip() for origin in os.getenv(
+        "ATLAS_CORS_ORIGINS", "http://localhost:8501,http://127.0.0.1:8501"
+    ).split(",") if origin.strip()
+]
 
 # Embedding model for the domain classifier (loaded once at import time
 # by app/core/domain_classifier.py). Any sentence-transformers-compatible
@@ -92,3 +112,8 @@ ATLAS_EMBEDDING_MODEL = os.getenv("ATLAS_EMBEDDING_MODEL", "BAAI/bge-small-en-v1
 # prompt. Requires OPENAI_API_KEY. Set to "" (empty) to disable entirely.
 ATLAS_LLM_PARSER_MODEL = os.getenv("ATLAS_LLM_PARSER_MODEL", "gpt-4o-mini")
 LLM_PARSER_ENABLED = bool(os.getenv("OPENAI_API_KEY")) and bool(ATLAS_LLM_PARSER_MODEL)
+
+# Primary LLM Parser Configuration (Ollama vs Cloud)
+ATLAS_PARSER_API_KEY = os.getenv("ATLAS_PARSER_API_KEY", "")
+ATLAS_PARSER_BASE_URL = os.getenv("ATLAS_PARSER_BASE_URL", "http://localhost:11434/v1")
+ATLAS_PARSER_MODEL_CLOUD = os.getenv("ATLAS_PARSER_MODEL", "llama3.1:latest")
