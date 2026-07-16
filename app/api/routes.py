@@ -11,10 +11,11 @@ Endpoints:
 """
 
 import threading
+import anyio
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Header, HTTPException, Depends
+from fastapi import APIRouter, Body, Header, HTTPException, Depends
 
 from app.api.schemas import (
     ExecutionPlanOut,
@@ -26,11 +27,11 @@ from app.api.schemas import (
     StageRouteOut,
     TenantContextIn,
     FeedbackRequest,
+    TrainParserRequest,
 )
 from app.config import (
     CALIBRATION_VERSION,
     DEFAULT_ALLOWED_PROVIDERS,
-    LLM_PARSER_ENABLED,
     PARSER_VERSION,
     POLICY_VERSION,
     REGISTRY_VERSION,
@@ -41,16 +42,18 @@ from app.config import (
     ALLOW_SERVER_FILE_PATHS,
 )
 from app.core.formatting import format_decision_summary
-from app.core.llm_parser import call_llm_parser
 from app.core.router import record_outcome, route
 from app.core.database import get_all_models, get_model, upsert_model, delete_model, add_feedback
 from app.models.schemas import RequestConstraints, TenantContext
+from app.core.verifiers import ExecutionVerifier, SchemaVerifier
+import httpx
 
 router = APIRouter()
 
 # A threading lock to protect read-modify-write cycles in /outcome and /models.
 # For multi-worker deployments, this should be a distributed lock or handled natively in SQL.
 _write_lock = threading.Lock()
+_parser_lock = threading.Lock()
 
 
 def _require_admin(x_atlas_admin_key: Optional[str] = Header(default=None)) -> None:
@@ -132,19 +135,18 @@ def route_request(payload: RouteRequest) -> RouteResponse:
         )
     try:
         decision = route(
-                prompt=payload.prompt,
-                input_formats=payload.input_formats,
-                estimated_tokens=payload.estimated_tokens,
-                estimated_output_tokens=payload.estimated_output_tokens,
-                artifact_hints=payload.artifact_hints,
-                request_constraints=_to_request_constraints(payload.request_constraints),
-                tenant_context=_to_tenant_context(payload.tenant_context),
-                files=payload.files,
-                profile_name=payload.profile_name,
-                shadow_model=payload.shadow_model,
-                registry=get_all_models(),
-                llm_parser=call_llm_parser,
-            )
+            prompt=payload.prompt,
+            input_formats=payload.input_formats,
+            estimated_tokens=payload.estimated_tokens,
+            estimated_output_tokens=payload.estimated_output_tokens,
+            artifact_hints=payload.artifact_hints,
+            request_constraints=_to_request_constraints(payload.request_constraints),
+            tenant_context=_to_tenant_context(payload.tenant_context),
+            files=payload.files,
+            profile_name=payload.profile_name,
+            shadow_model=payload.shadow_model,
+            registry=get_all_models(),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -155,6 +157,77 @@ def route_request(payload: RouteRequest) -> RouteResponse:
         decision_record=_strip_noise(decision.decision_record),
         summary_text=format_decision_summary(decision),
     )
+
+
+@router.post("/execute", tags=["atlas-gateway"])
+async def execute_route_proxy(payload: RouteRequest, x_openrouter_key: str = Header(...)):
+    """Data Plane endpoint: Route the prompt AND execute the LLM inference against OpenRouter."""
+    decision = await anyio.to_thread.run_sync(lambda: route(
+        prompt=payload.prompt,
+        input_formats=payload.input_formats,
+        estimated_tokens=payload.estimated_tokens,
+        estimated_output_tokens=payload.estimated_output_tokens,
+        artifact_hints=payload.artifact_hints,
+        request_constraints=_to_request_constraints(payload.request_constraints),
+        tenant_context=_to_tenant_context(payload.tenant_context),
+        files=payload.files,
+        profile_name=payload.profile_name,
+        shadow_model=payload.shadow_model,
+        registry=get_all_models(),
+    ))
+    
+    if decision.abstain or not decision.selected_plan:
+        raise HTTPException(status_code=400, detail="Router abstained or no plan generated.")
+        
+    plan = decision.selected_plan
+    
+    async def call_openrouter(model_name: str) -> str:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {x_openrouter_key}",
+                    "HTTP-Referer": "https://atlas-neural-gateway.local",
+                },
+                json={
+                    "model": model_name,
+                    "messages": [{"role": "user", "content": payload.prompt}]
+                }
+            )
+            if resp.status_code != 200:
+                raise HTTPException(status_code=502, detail=f"OpenRouter Error: {resp.text}")
+            return resp.json()["choices"][0]["message"]["content"]
+
+    # Handle Frugal Cascade Execution
+    if plan.plan_type == "cascade" and plan.stage_routes:
+        cheap_model = plan.selected_model
+        fallback_model = plan.fallback_models[0] if plan.fallback_models else None
+        # Use verification_strategy set by router.py — NOT verifier_models (those are model names)
+        strategy = getattr(plan, "verification_strategy", None)
+        
+        response_text = await call_openrouter(cheap_model)
+        
+        # Verify
+        passed = True
+        if strategy == "ast_execution":
+            passed = ExecutionVerifier().verify(response_text)
+        elif strategy == "json_schema":
+            passed = SchemaVerifier().verify(response_text)
+            
+        if passed:
+            return {"status": "success", "model_used": cheap_model, "cascaded": False, "response": response_text}
+        else:
+            if not fallback_model:
+                raise HTTPException(status_code=500, detail="Verification failed and no fallback available.")
+            # Cascade to expensive model
+            escalated_response = await call_openrouter(fallback_model)
+            return {"status": "success", "model_used": fallback_model, "cascaded": True, "response": escalated_response}
+            
+    else:
+        # Standard Single-Shot Execution
+        model_name = plan.selected_model
+        response_text = await call_openrouter(model_name)
+        return {"status": "success", "model_used": model_name, "cascaded": False, "response": response_text}
 
 
 @router.post("/outcome", status_code=202)
@@ -174,8 +247,9 @@ def record_outcome_route(payload: OutcomeIn, _: None = Depends(_require_admin)) 
             user_accepted=payload.user_accepted,
             safety_flagged=payload.safety_flagged,
         )
-        updated_model = next(m for m in models if m["name"] == payload.model_name)
-        upsert_model(updated_model)
+        updated_model = next((m for m in models if m["name"] == payload.model_name), None)
+        if updated_model:
+            upsert_model(updated_model)
     return {"status": "accepted"}
 
 
@@ -205,7 +279,7 @@ def get_model_route(name: str) -> Dict[str, Any]:
 
 
 @router.post("/models", status_code=201)
-def create_or_update_model(payload: Dict[str, Any], _: None = Depends(_require_admin)) -> Dict[str, str]:
+def create_or_update_model(payload: Dict[str, Any] = Body(...), _: None = Depends(_require_admin)) -> Dict[str, str]:
     if "name" not in payload:
         raise HTTPException(status_code=400, detail="Model must have a 'name'")
     required_keys = ["provider", "tier", "ops_dynamic", "pricing", "context", "priors"]
@@ -224,9 +298,44 @@ async def delete_model_route(name: str, _: None = Depends(_require_admin)) -> No
         raise HTTPException(status_code=404, detail=f"Unknown model: {name}")
 
 
-@router.get("/health")
-async def health() -> Dict[str, str]:
-    return {"status": "ok"}
+@router.get("/health", tags=["meta"])
+async def health_check():
+    return {"status": "ok", "registry_models": len(get_all_models())}
+
+@router.post("/train_parser", tags=["atlas-gateway"])
+async def train_parser(payload: TrainParserRequest):
+    try:
+        from app.core.embedding_parser import get_parser, _cached_parse
+        import subprocess
+        import sys
+        from pathlib import Path
+        
+        parser = get_parser()
+        
+        new_example = {
+            "text": payload.prompt,
+            "primary_family": payload.primary_family,
+            "domain": payload.domain,
+            "risk_tier": payload.risk_tier,
+            "complexity": payload.complexity,
+            "risk_type": "standard",
+            "expected_output": "free_text",
+            "document_type": "generic",
+            "decomposition_needed": False,
+            "needs_verification": False
+        }
+        
+        project_root = Path(__file__).resolve().parents[2]
+        dataset_path = project_root / "data" / "semantic_examples.json"
+        
+        with _parser_lock:
+            parser.add_example(new_example)
+            
+        return {"status": "success", "message": "Example added and matrix rebuilt"}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/versions")

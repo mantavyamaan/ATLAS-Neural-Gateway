@@ -5,6 +5,9 @@ import time
 import os
 import tempfile
 from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Page Config must be the first Streamlit command
 st.set_page_config(
@@ -25,9 +28,16 @@ html, body, [class*="css"]  {
     color: #e0e0e0;
 }
 
-/* Force dark theme background */
+/* Animated Dark Premium Background */
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
 .stApp {
-    background: radial-gradient(circle at 15% 50%, #0a0a0f, #050508);
+    background: linear-gradient(-45deg, #050508, #0a0a14, #050508, #0c0c16);
+    background-size: 400% 400%;
+    animation: gradientBG 15s ease infinite;
 }
 
 /* Hide default streamlit elements */
@@ -52,89 +62,112 @@ h2, h3 {
     font-weight: 600 !important;
 }
 
-/* Glassmorphism Cards */
+/* High-End Glassmorphism Cards */
 .glass-card {
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 16px;
-    padding: 24px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 20px;
+    padding: 30px;
     margin-bottom: 24px;
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s ease, border-color 0.3s ease;
+    box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.02);
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease, border-color 0.4s ease;
 }
 
 .glass-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-4px);
+    border-color: rgba(0, 242, 254, 0.3);
+    box-shadow: 0 15px 50px -15px rgba(0,242,254,0.15), inset 0 0 0 1px rgba(0,242,254,0.1);
 }
 
-/* Metric overriding */
+/* Premium Metric Display */
 [data-testid="stMetricValue"] {
     font-family: 'Outfit', sans-serif !important;
-    color: #00f2fe !important;
-    font-size: 2rem !important;
+    background: linear-gradient(90deg, #ffffff 0%, #a0a0a0 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-size: 2.4rem !important;
     font-weight: 700 !important;
+    letter-spacing: -1px;
 }
 
 [data-testid="stMetricLabel"] {
-    color: #a0a0a0 !important;
-    font-size: 0.9rem !important;
+    color: #8a8d93 !important;
+    font-size: 0.95rem !important;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
+    font-weight: 600;
 }
 
-/* Text Area */
+/* Premium Text Area with Glow */
 .stTextArea textarea {
-    background: rgba(0, 0, 0, 0.2) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background: rgba(10, 10, 15, 0.6) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
     color: #fff !important;
-    border-radius: 12px !important;
-    font-size: 1rem !important;
-    padding: 16px !important;
+    border-radius: 16px !important;
+    font-size: 1.05rem !important;
+    padding: 20px !important;
+    line-height: 1.6 !important;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
 }
 
 .stTextArea textarea:focus {
     border-color: #00f2fe !important;
-    box-shadow: 0 0 0 1px #00f2fe !important;
+    box-shadow: 0 0 0 1px #00f2fe, 0 0 30px rgba(0, 242, 254, 0.2) !important;
+    background: rgba(15, 15, 25, 0.8) !important;
 }
 
-/* Primary Button */
+/* Premium Button with Pulse Animation */
+@keyframes pulseGlow {
+    0% { box-shadow: 0 0 0 0 rgba(0, 242, 254, 0.4); }
+    70% { box-shadow: 0 0 0 15px rgba(0, 242, 254, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 242, 254, 0); }
+}
+
 .stButton>button {
-    background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%) !important;
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%) !important;
     color: #000 !important;
     border: none !important;
-    border-radius: 8px !important;
-    padding: 12px 24px !important;
-    font-weight: 600 !important;
+    border-radius: 12px !important;
+    padding: 16px 32px !important;
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
     font-family: 'Outfit', sans-serif !important;
-    transition: all 0.3s ease !important;
+    letter-spacing: 0.5px;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
     width: 100% !important;
+    text-transform: uppercase;
+    animation: pulseGlow 3s infinite;
 }
 
 .stButton>button:hover {
-    box-shadow: 0 0 20px rgba(0, 242, 254, 0.4) !important;
-    transform: translateY(-1px) !important;
+    box-shadow: 0 10px 30px rgba(0, 242, 254, 0.4) !important;
+    transform: translateY(-2px) !important;
+    filter: brightness(1.1);
 }
 
-/* Tags/Pills */
+/* Elegant Tags/Pills */
 .model-tag {
     display: inline-block;
-    padding: 6px 12px;
-    background: rgba(0, 242, 254, 0.1);
+    padding: 8px 16px;
+    background: linear-gradient(90deg, rgba(0, 242, 254, 0.1), rgba(0, 242, 254, 0.05));
     border: 1px solid rgba(0, 242, 254, 0.3);
-    border-radius: 20px;
+    border-radius: 30px;
     color: #00f2fe;
-    font-size: 0.85rem;
-    font-weight: 500;
+    font-size: 0.9rem;
+    font-weight: 600;
     margin-right: 8px;
     margin-bottom: 8px;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 2px 10px rgba(0,242,254,0.1);
 }
 .fallback-tag {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #a0a0a0;
+    color: #b0b0b0;
 }
 
 /* Progress bars */
@@ -155,13 +188,29 @@ div[data-baseweb="select"] > div::-webkit-scrollbar {
 /* Fix st.metric truncation (e.g. claude-haiku-...) */
 [data-testid="stMetricValue"] > div {
     white-space: normal !important;
-    word-break: break-all !important;
+    word-break: break-word !important;
     line-height: 1.1 !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
 }
 [data-testid="stMetricValue"] {
     white-space: normal !important;
-    word-break: break-all !important;
+    word-break: break-word !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
 }
+
+/* Style Segmented Control (Switch Button) */
+[data-testid="stSegmentedControl"] {
+    background: rgba(10, 10, 15, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 4px;
+}
+[data-testid="stSegmentedControl"] label {
+    color: #fff !important;
+}
+
 
 </style>
 """, unsafe_allow_html=True)
@@ -212,6 +261,7 @@ with st.sidebar:
         format_func=lambda x: f"[{provider_map.get(x, 'Unknown')}] {x}"
     )
     
+    st.markdown("---")
     st.markdown("---")
     st.markdown("### 🔑 API Credentials")
     openrouter_key = st.text_input("OpenRouter API Key", type="password", help="Required for Stage 2 LLM Generation")
@@ -297,7 +347,7 @@ if st.button("🚀 Route Request"):
         with st.spinner("ATLAS Neural Gateway is analyzing complexity and scoring models..."):
             start_time = time.time()
             try:
-                resp = requests.post(f"{API_URL}/route", json=payload, timeout=60)
+                resp = requests.post(f"{API_URL}/route", json=payload, timeout=60.0)
                 elapsed = time.time() - start_time
                 
                 if resp.status_code == 200:
@@ -319,7 +369,7 @@ if st.button("🚀 Route Request"):
                     st.error(f"Backend Error: {resp.status_code}")
                     st.write(resp.text)
             except requests.exceptions.ConnectionError:
-                st.error("❌ Connection Refused. Is the FastAPI server running on http://127.0.0.1:8000?")
+                st.error(f"❌ Connection Refused. Is the FastAPI server running on {API_URL}?")
 
 if st.session_state.abstained:
     friendly_msg = get_friendly_reason(st.session_state.raw_data)
@@ -333,7 +383,7 @@ elif st.session_state.decision:
     trace = st.session_state.trace
     
     # Top Metrics Row
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2, m3, m4 = st.columns([1.7, 1, 1, 1])
     m1.metric("Selected Model", decision.get("selected_model", "N/A").split('/')[-1])
     m2.metric("Est. Latency", f"{decision.get('expected_latency_ms', 0):.0f} ms")
     m3.metric("Est. Cost", f"${decision.get('expected_cost_usd', 0):.4f}")
@@ -341,6 +391,9 @@ elif st.session_state.decision:
     
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     st.markdown("### 🎯 Routing Analysis", unsafe_allow_html=True)
+    
+    if task_summary.get('complexity') == 'high':
+        st.info("🧠 **Complex task detected!** Risk tier automatically escalated to prioritize stronger reasoning models.")
     
     c1, c2 = st.columns(2)
     with c1:
@@ -389,31 +442,58 @@ elif st.session_state.decision:
         st.json(st.session_state.raw_data)
         
     st.markdown("---")
-    st.markdown("### 🧠 Train the Router (Dynamic Memory)")
-    st.info("Did the semantic parser route this incorrectly? Submit the correct family to instantly train the engine!")
+    st.markdown("### 🧠 Train the Engine (Dynamic KNN Memory)")
+    st.info("Did the semantic parser route this incorrectly? Submit the correct mapping to instantly rebuild the vector matrix!")
     
-    col1, col2 = st.columns([3, 1])
+    col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 1.5])
     with col1:
         correct_family = st.selectbox(
-            "Select Correct Primary Family",
+            "Primary Family",
             options=["chat", "coding", "reasoning", "mathematics", "vision", "ocr", "document_qa", "audio", "agent", "translation", "summarization", "image_generation", "video_generation"],
             index=0,
             key="feedback_family"
         )
     with col2:
+        correct_domain = st.selectbox(
+            "Domain",
+            options=["general", "software", "medical", "legal", "finance", "security", "crm", "hrm", "project", "accounts"],
+            index=0,
+            key="feedback_domain"
+        )
+    with col3:
+        correct_risk = st.selectbox(
+            "Risk Tier",
+            options=["low", "medium", "high", "extreme"],
+            index=0,
+            key="feedback_risk"
+        )
+    with col4:
+        correct_complexity = st.selectbox(
+            "Complexity",
+            options=["low", "medium", "high"],
+            index=0,
+            key="feedback_complexity"
+        )
+    with col5:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Submit Correction", type="primary", use_container_width=True):
+        if st.button("Submit", type="primary", use_container_width=True):
             try:
-                resp = requests.post(f"{API_URL}/feedback", json={
+                resp = requests.post(f"{API_URL}/train_parser", json={
                     "prompt": st.session_state.prompt,
-                    "correct_family": correct_family
+                    "primary_family": correct_family,
+                    "domain": correct_domain,
+                    "risk_tier": correct_risk,
+                    "complexity": correct_complexity
                 })
                 if resp.status_code == 200:
-                    st.success("✅ Saved to Memory Bank!")
+                    st.toast("✅ Training example added successfully!", icon="🎉")
+                    st.balloons()
+                    st.success("✅ Matrix Rebuilt! The routing engine has learned your preference.")
                 else:
-                    st.error("Failed to save correction.")
+                    st.error("Failed to update dataset.")
             except Exception as e:
                 st.error(f"Error: {e}")
+
 
     st.markdown("---")
     st.markdown("### ⚡ Stage 2: LLM Execution")

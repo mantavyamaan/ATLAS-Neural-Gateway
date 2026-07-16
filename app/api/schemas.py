@@ -22,8 +22,8 @@ class RequestConstraintsIn(StrictModel):
     allowed_tiers: Optional[List[str]] = None
     no_open_weight: bool = False
     required_region: Optional[str] = None
-    max_cost_usd: Optional[float] = Field(default=None, gt=0)
-    max_latency_ms: Optional[float] = Field(default=None, gt=0)
+    max_cost_usd: Optional[float] = Field(default=None, ge=0)
+    max_latency_ms: Optional[float] = Field(default=None, ge=0)
     mandatory_verifier: bool = False
     no_web_access: bool = False
     must_use_single_model: bool = False
@@ -62,6 +62,11 @@ class RouteRequest(StrictModel):
     )
     profile_name: str = "balanced"
     shadow_model: Optional[str] = None
+    execute_answer: bool = False
+    parser_mode: str = Field(
+        default="auto",
+        description="Parser strictness: 'auto', 'heuristic_strict', or 'ollama_strict'."
+    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -137,7 +142,14 @@ class ModelSummaryOut(StrictModel):
     incident_status: str
 
 
-class FeedbackRequest(BaseModel):
+class FeedbackRequest(StrictModel):
     """Payload for submitting feedback on parser routing."""
     prompt: str = Field(..., description="The user's original prompt.")
     correct_family: str = Field(..., description="The correct routing family.")
+
+class TrainParserRequest(StrictModel):
+    prompt: str = Field(..., description="The prompt to train on")
+    primary_family: str = Field(..., description="The target family")
+    domain: str = Field(..., description="The target domain")
+    risk_tier: str = Field(..., description="The target risk tier")
+    complexity: str = Field(default="low", description="The target complexity tier")

@@ -6,6 +6,8 @@ python-dotenv>=1.0.0
 
 # Routing engine math
 numpy>=1.26.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
 
 # Semantic domain classifier — fastembed uses ONNX runtime under the
 # hood (no PyTorch dependency, ~30MB install vs ~800MB for sentence-

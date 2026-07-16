@@ -16,7 +16,7 @@ easy to unit test and safe to call concurrently.
 
 import hashlib
 import math
-from copy import deepcopy
+
 from typing import Any, Dict, List, Tuple, Optional
 
 import numpy as np
@@ -73,6 +73,12 @@ TASK_FAMILY_SIGNAL_MAP: Dict[str, Dict[str, float]] = {
     "audio": {
         "perf:audio_understanding": 0.60, "perf:summarization": 0.20,
         "perf:instruction_following": 0.20
+    },
+    "image_generation": {
+        "perf:image_generation": 0.90, "perf:instruction_following": 0.10
+    },
+    "video_generation": {
+        "perf:video_generation": 0.90, "perf:instruction_following": 0.10
     }
 }
 
@@ -96,9 +102,9 @@ DOMAIN_EXPERTISE_MAP: Dict[str, str] = {
 
 WEIGHT_PROFILES = {
     "quality_first": {"quality": 0.36, "uncertainty": 0.16, "cost": 0.10, "latency": 0.08, "reliability": 0.14, "riskfit": 0.10, "runtime": 0.06},
-    "budget_first": {"quality": 0.22, "uncertainty": 0.10, "cost": 0.30, "latency": 0.12, "reliability": 0.10, "riskfit": 0.08, "runtime": 0.08},
+    "budget_first": {"quality": 0.30, "uncertainty": 0.05, "cost": 0.45, "latency": 0.10, "reliability": 0.05, "riskfit": 0.03, "runtime": 0.02},
     "latency_first": {"quality": 0.20, "uncertainty": 0.10, "cost": 0.10, "latency": 0.30, "reliability": 0.10, "riskfit": 0.08, "runtime": 0.12},
-    "balanced": {"quality": 0.28, "uncertainty": 0.12, "cost": 0.16, "latency": 0.12, "reliability": 0.12, "riskfit": 0.10, "runtime": 0.10},
+    "balanced": {"quality": 0.30, "uncertainty": 0.10, "cost": 0.30, "latency": 0.10, "reliability": 0.10, "riskfit": 0.05, "runtime": 0.05},
     "high_risk": {"quality": 0.28, "uncertainty": 0.18, "cost": 0.04, "latency": 0.04, "reliability": 0.18, "riskfit": 0.18, "runtime": 0.10},
     "customer_support_summarization": {"quality": 0.22, "uncertainty": 0.10, "cost": 0.22, "latency": 0.18, "reliability": 0.10, "riskfit": 0.08, "runtime": 0.10},
     "contract_review_intake": {"quality": 0.30, "uncertainty": 0.15, "cost": 0.06, "latency": 0.06, "reliability": 0.15, "riskfit": 0.18, "runtime": 0.10},
@@ -231,6 +237,20 @@ def estimate_request_cost_usd(model: Dict[str, Any], input_tokens: int, output_t
             (output_tokens / 1_000_000) * model["pricing"]["output_cost"])
 
 
+def predict_output_tokens(task: TaskFeatures) -> int:
+    """Heuristic regression for output tokens if user estimate is unreliable."""
+    base = task.estimated_output_tokens
+    if task.primary_family == "coding":
+        return max(base, int(task.estimated_tokens * 1.2) + 200)
+    if task.primary_family == "summarization":
+        return max(base, int(task.estimated_tokens * 0.3) + 100)
+    if task.primary_family == "translation":
+        return max(base, task.estimated_tokens + 50)
+    if task.primary_family == "chat":
+        return max(base, 250)
+    return max(base, 100)
+
+
 def estimate_request_latency_ms(model: Dict[str, Any], task: TaskFeatures, n_stages: int = 1) -> float:
     base = model["ops_dynamic"]["recent_latency_ms"]
     complexity_mult = {"low": 1.0, "medium": 1.25, "high": 1.60}.get(task.complexity, 1.0)
@@ -267,7 +287,6 @@ def attach_contextual_quality(
 ) -> List[Dict[str, Any]]:
     enriched = []
     for model in models:
-        model = deepcopy(model)
         g = model["priors"]["global"]
         global_mean = beta_mean(g["alpha"], g["beta"])
         falpha, fbeta = effective_prior(model, task.primary_family)
@@ -316,9 +335,7 @@ def pareto_vector(model: Dict[str, Any]) -> Tuple[float, float, float, float, fl
     )
 
 
-def dominates_with_margin(m1: Dict[str, Any], m2: Dict[str, Any], eps: float = 0.02) -> bool:
-    v1 = pareto_vector(m1)
-    v2 = pareto_vector(m2)
+def dominates_with_margin(v1: Tuple[float, float, float, float, float], v2: Tuple[float, float, float, float, float], eps: float = 0.02) -> bool:
     ge_all = all(a >= b for a, b in zip(v1, v2))
     gt_any = any(a > b + eps for a, b in zip(v1, v2))
     return ge_all and gt_any
@@ -326,11 +343,17 @@ def dominates_with_margin(m1: Dict[str, Any], m2: Dict[str, Any], eps: float = 0
 
 def pareto_frontier(models: List[Dict[str, Any]], eps: float = 0.02) -> List[Dict[str, Any]]:
     frontier = []
+    # Precalculate vectors to turn O(N^2) heavy processing into O(N) prep + O(N^2) simple float comparisons
+    vectors = [pareto_vector(m) for m in models]
+    
     for i, model in enumerate(models):
-        dominated = any(
-            dominates_with_margin(models[j], model, eps=eps)
-            for j in range(len(models)) if j != i
-        )
+        dominated = False
+        v_i = vectors[i]
+        for j, v_j in enumerate(vectors):
+            if i != j and dominates_with_margin(v_j, v_i, eps=eps):
+                dominated = True
+                break
+        
         if not dominated:
             frontier.append(model)
     return frontier
@@ -351,7 +374,7 @@ def minmax_normalize(values: List[float], invert: bool = False) -> List[float]:
 
 
 def choose_effective_profile(task: TaskFeatures, requested: str) -> str:
-    if task.risk_tier == "high":
+    if task.risk_tier in {"high", "extreme"}:  # treat extreme as high-risk routing profile
         return "high_risk"
     if task.workflow_profile in WEIGHT_PROFILES:
         return task.workflow_profile
@@ -393,7 +416,7 @@ def compute_utilities(
 
     out = []
     for model, q, u, c, l, r, rf, rt in zip(models, qn, un, cn, ln, rn, rfn, rtn):
-        m = deepcopy(model)
+        m = model.copy()
         utility = (
             w["quality"] * q
             - w["uncertainty"] * u
@@ -411,7 +434,11 @@ def compute_utilities(
 
         rc = task.request_constraints
         est_latency = estimate_request_latency_ms(model, task)
-        est_cost = estimate_request_cost_usd(model, task.estimated_tokens, task.estimated_output_tokens)
+        
+        # Use heuristic regressor for output length
+        pred_output = predict_output_tokens(task)
+        est_cost = estimate_request_cost_usd(model, task.estimated_tokens, pred_output)
+        
         sla_violation = False
         if rc.max_latency_ms is not None and est_latency > rc.max_latency_ms:
             utility -= 0.15
@@ -437,55 +464,64 @@ def compute_utilities(
 # Confidence estimation via Thompson Sampling
 # --------------------------------------------------------------------------
 
-def bounded_beta_sample(mean: float, variance: float, rng: Optional[np.random.RandomState] = None) -> float:
-    max_var = max(mean * (1 - mean) - 1e-6, 1e-6)
-    variance = max(min(variance, max_var), 1e-6)
-    common = (mean * (1 - mean) / variance) - 1
-    alpha = mean * common
-    beta_param = (1 - mean) * common
-    if alpha < 1.0 or beta_param < 1.0:
-        scale = 1.0 / min(alpha, beta_param)
-        alpha *= scale
-        beta_param *= scale
-    if rng is not None:
-        return float(rng.beta(alpha, beta_param))
-    return float(np.random.beta(alpha, beta_param))
-
-
 def estimate_confidence(
     models: List[Dict[str, Any]],
     task: TaskFeatures,
     profile_name: str = "balanced",
     n_sim: int = 1500,
 ) -> Dict[str, Any]:
+    if not models:
+        return {"win_probabilities": {}, "top_model": None, "top_confidence": 0.0, "second_confidence": 0.0}
+
     profile_name = choose_effective_profile(task, profile_name)
     w = WEIGHT_PROFILES[profile_name]
-    seed_str = ",".join(sorted(m["name"] for m in models)) + task.primary_family
+    seed_str = ",".join(sorted(m.get("name", "") for m in models)) + task.primary_family
     seed = int(hashlib.sha256(seed_str.encode()).hexdigest()[:8], 16)
     rng = np.random.RandomState(seed)
-    wins = {m["name"]: 0 for m in models}
-    for _ in range(n_sim):
-        sampled_utilities = []
-        for m in models:
-            sq = bounded_beta_sample(m["q"]["runtime_adjusted_mean"], max(m["q"]["family_variance"], 1e-4), rng=rng)
-            uncertainty = m["q"]["uncertainty"]
-            latency_score_val = static_latency_score(m)
-            riskfit = risk_support(m, task)
-            # Sample only the quality term while preserving the exact same
-            # utility baseline used to rank primary and fallback candidates.
-            # This avoids selecting with one objective and reporting
-            # confidence from a different one.
-            su = (
-                m["u"]["expected_utility"]
-                + w["quality"] * (sq - m["q"]["runtime_adjusted_mean"])
-            )
-            sampled_utilities.append((m["name"], su))
-        winner = max(sampled_utilities, key=lambda x: x[1])[0]
-        wins[winner] += 1
-    win_probs = {k: v / n_sim for k, v in wins.items()}
+    
+    n_models = len(models)
+    
+    means = np.array([m["q"]["runtime_adjusted_mean"] for m in models])
+    variances = np.array([max(m["q"]["family_variance"], 1e-4) for m in models])
+    
+    # Vectorized bounded_beta_sample parameter calculation
+    means = np.clip(means, 1e-6, 1.0 - 1e-6)
+    max_vars = np.maximum(means * (1.0 - means) - 1e-6, 1e-6)
+    variances = np.clip(variances, 1e-6, max_vars)
+    
+    commons = (means * (1.0 - means) / variances) - 1.0
+    alphas = means * commons
+    betas = (1.0 - means) * commons
+    
+    # Scale parameters if less than 1.0 to avoid Beta(0,x) errors
+    scales = np.where((alphas < 1.0) | (betas < 1.0), 
+                      1.0 / np.maximum(np.minimum(alphas, betas), 1e-9), 
+                      1.0)
+    alphas *= scales
+    betas *= scales
+    
+    # Sample matrix of shape (n_sim, n_models)
+    sq_matrix = rng.beta(alphas, betas, size=(n_sim, n_models))
+    
+    base_utilities = np.array([m["u"]["expected_utility"] for m in models])
+    
+    # Calculate matrix of utilities: shape (n_sim, n_models)
+    # utility = base_utility + w["quality"] * (sampled_q - expected_q)
+    utility_matrix = base_utilities + w["quality"] * (sq_matrix - means)
+    
+    # Find the indices of the maximum utilities for each simulation
+    winners = np.argmax(utility_matrix, axis=1)
+    
+    # Count wins
+    win_counts = np.bincount(winners, minlength=n_models)
+    win_probs_arr = win_counts / n_sim
+    
+    win_probs = {m["name"]: float(win_probs_arr[i]) for i, m in enumerate(models)}
+    
     ordered = sorted(win_probs.items(), key=lambda x: x[1], reverse=True)
-    top_name, top_prob = ordered[0]
+    top_name, top_prob = ordered[0] if ordered else (None, 0.0)
     second_prob = ordered[1][1] if len(ordered) > 1 else 0.0
+    
     return {
         "win_probabilities": win_probs,
         "top_model": top_name,

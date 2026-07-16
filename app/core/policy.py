@@ -23,16 +23,14 @@ def evaluate_policy(task: TaskFeatures) -> PolicyDecision:
     require_verifier_types: List[str] = []
     overlay = task.tenant_context.policy_overlay or {}
 
+    must_escalate = False
+    
     # Medical high-actionability escalation
     if task.domain == "medical" and task.actionability == "high":
         notes.append("Medical high-actionability task requires mandatory escalation.")
         require_verifier_types.extend(["safety_review", "factuality_review"])
-        return PolicyDecision(
-            allowed=True, must_escalate=True, must_abstain=False,
-            restricted_to_tiers=["Frontier"],
-            require_verifier_types=sorted(set(require_verifier_types)),
-            notes=notes,
-        )
+        restricted_to_tiers.append("Frontier")
+        must_escalate = True
 
     # Legal tasks
     if task.domain == "legal":
@@ -80,12 +78,15 @@ def evaluate_policy(task: TaskFeatures) -> PolicyDecision:
     if overlay.get("allowed_providers"):
         restricted_to_providers.extend(overlay["allowed_providers"])
         notes.append("Tenant overlay restricts providers.")
+    if overlay.get("allowed_models"):
+        restricted_to_models.extend(overlay["allowed_models"])
+        notes.append("Tenant overlay restricts models.")
     if overlay.get("mandatory_verifier", False):
         require_verifier_types.append("consistency_review")
         notes.append("Tenant overlay requires mandatory verification.")
 
     return PolicyDecision(
-        allowed=True, must_escalate=False, must_abstain=False,
+        allowed=True, must_escalate=must_escalate, must_abstain=False,
         restricted_to_tiers=sorted(set(restricted_to_tiers)),
         restricted_to_models=sorted(set(restricted_to_models)),
         restricted_to_providers=sorted(set(restricted_to_providers)),
@@ -110,7 +111,7 @@ def apply_policy_to_models(
         if task.risk_tier == "high" and rs < 0.85:
             reasons[name] = f"insufficient_safety:{rs:.2f}"
             continue
-        if task.risk_tier == "high" and "high_risk" in model["routing"].get("avoid_for", []):
+        if task.risk_tier == "high" and "high_risk" in (model.get("routing") or {}).get("avoid_for", []):
             reasons[name] = "routing_avoid_high_risk"
             continue
         if policy.restricted_to_tiers and model["tier"] not in policy.restricted_to_tiers:

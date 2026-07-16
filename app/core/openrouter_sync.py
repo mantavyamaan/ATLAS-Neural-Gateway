@@ -45,18 +45,7 @@ def fetch_openrouter_models() -> List[Dict[str, Any]]:
         return []
 
 
-def load_real_benchmarks() -> Dict[str, Any]:
-    """Load ground-truth benchmark data from JSON."""
-    path = os.path.join(os.path.dirname(__file__), "..", "models", "real_benchmarks.json")
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Failed to load real benchmarks: {e}")
-        return {}
-
-
-def map_model_to_registry(or_model: Dict[str, Any], real_benchmarks: Dict[str, Any]) -> Dict[str, Any]:
+def map_model_to_registry(or_model: Dict[str, Any]) -> Dict[str, Any]:
     """Map an OpenRouter model dictionary to the ATLAS registry schema."""
     # Handle id format: "openai/gpt-4o"
     full_id = or_model.get("id", "")
@@ -68,15 +57,7 @@ def map_model_to_registry(or_model: Dict[str, Any], real_benchmarks: Dict[str, A
     perf = _build_performance(name, provider, tier)
     domains = _build_domains(provider, name, tier)
     
-    # Inject ground-truth benchmarks if available
-    has_evidence = False
-    if full_id in real_benchmarks:
-        has_evidence = True
-        real_data = real_benchmarks[full_id]
-        if "performance" in real_data:
-            perf.update(real_data["performance"])
-        if "domains" in real_data:
-            domains.update(real_data["domains"])
+
     
     # Calculate pricing (OpenRouter provides per-token cost, we need per-million)
     pricing_data = or_model.get("pricing", {})
@@ -98,7 +79,7 @@ def map_model_to_registry(or_model: Dict[str, Any], real_benchmarks: Dict[str, A
         "status": "active",
         "api_available": True,
         "evidence": {
-            "eligible_for_auto_route": has_evidence
+            "eligible_for_auto_route": False
         },
         "open_weight": _is_open_weight(provider, name),
         "allowed_regions": ["global"],
@@ -121,11 +102,9 @@ def map_model_to_registry(or_model: Dict[str, Any], real_benchmarks: Dict[str, A
         "routing": _routing_meta(tier == "Economy"),
         "verifier_fit": _build_verifier_fit(tier),
         "evidence": {
-            "source": "curated_benchmark" if full_id in real_benchmarks else "unverified_provider_metadata",
-            "eligible_for_auto_route": full_id in real_benchmarks,
-            "evaluated_task_families": sorted(
-                (real_benchmarks.get(full_id, {}).get("performance") or {}).keys()
-            ),
+            "source": "unverified_provider_metadata",
+            "eligible_for_auto_route": False,
+            "evaluated_task_families": [],
         },
     }
     return entry
@@ -148,8 +127,6 @@ def sync_openrouter_models() -> None:
     if current_map:
         logger.info(f"Database already contains {len(current_map)} models. Refreshing from OpenRouter.")
         
-    real_benchmarks = load_real_benchmarks()
-    
     updated_models = []
     for or_model in or_models:
         model_id = or_model.get("id", "")
@@ -158,13 +135,11 @@ def sync_openrouter_models() -> None:
             continue
             
         pricing = or_model.get("pricing", {})
-        try:
-            if float(pricing.get("prompt", 0.0)) < 0 or float(pricing.get("completion", 0.0)) < 0:
-                continue
-        except (ValueError, TypeError):
-            pass
+        if not pricing or float(pricing.get("prompt", 0)) == 0 and float(pricing.get("completion", 0)) == 0 and "free" not in model_id.lower():
+            # Skip models with no pricing info unless explicitly free
+            continue
 
-        mapped = map_model_to_registry(or_model, real_benchmarks)
+        mapped = map_model_to_registry(or_model)
         # Preserve Bayesian priors and evaluation state if model already exists
         if mapped["name"] in current_map:
             existing = current_map[mapped["name"]]
@@ -173,5 +148,13 @@ def sync_openrouter_models() -> None:
         updated_models.append(mapped)
         
     bulk_upsert_models(updated_models)
-        
+
+    # Automatically run benchmark sync to unlock models with real leaderboard data
+    try:
+        from app.core.benchmark_sync import run_benchmark_sync
+        summary = run_benchmark_sync()
+        logger.info(f"Benchmark sync result: {summary}")
+    except Exception as bench_exc:
+        logger.warning(f"Benchmark sync failed (non-critical): {bench_exc}")
+
     logger.info(f"Successfully seeded database with {len(or_models)} live models from OpenRouter.")

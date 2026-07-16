@@ -50,7 +50,6 @@ def route(
     estimated_tokens: int = 2000,
     estimated_output_tokens: int = 1200,
     artifact_hints: Optional[List[Dict[str, Any]]] = None,
-    llm_parser: Optional[Callable] = None,
     request_constraints: Optional[RequestConstraints] = None,
     tenant_context: Optional[TenantContext] = None,
     files: Optional[List[str]] = None,
@@ -70,7 +69,6 @@ def route(
         estimated_tokens=estimated_tokens,
         estimated_output_tokens=estimated_output_tokens,
         artifact_hints=artifact_hints,
-        llm_parser=llm_parser,
         request_constraints=request_constraints,
         tenant_context=tenant_context,
         files=files,
@@ -149,6 +147,18 @@ def route(
     # The primary is always the highest expected-utility model. Thompson
     # sampling quantifies uncertainty around that decision; it does not use a
     # different scoring formula to choose a contradictory primary.
+    if not scored:
+        # All frontier models were filtered by compute_utilities — abstain conservatively
+        return RoutingDecision(
+            selected_plan=None, abstain=True, escalate_to_human=True,
+            decision_record={
+                "decision_id": decision_id,
+                "status": "no_scoreable_models",
+                "router_version": ROUTER_VERSION,
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "elapsed_ms": (time.time() - start_time) * 1000,
+            },
+        )
     primary_model = scored[0]
     selected_win_probability = confidence_data["win_probabilities"].get(primary_model["name"], 0.0)
     other_probabilities = [
@@ -160,6 +170,21 @@ def route(
     confidence_data["selected_confidence"] = selected_win_probability
     confidence_data["selected_margin"] = selected_margin
     fallback_models = [m for m in scored if m["name"] != primary_model["name"]][:3]
+
+    # ---- Cascade Routing ----
+    is_coding = (task.primary_family == "coding" or "coding" in task.secondary_families)
+    is_json = task.requires_json
+    cascade_strategy = None
+    if task.complexity == "low" and task.risk_tier == "low" and (is_coding or is_json):
+        cascade_strategy = "ast_execution" if is_coding else "json_schema"
+        cheap_models = [m for m in all_scored if m["name"] in ["gemini-1.5-flash", "llama-3.1-8b-instant"]]
+        if cheap_models:
+            primary_model = cheap_models[0]
+            selected_win_probability = 1.0
+            confidence_data["selected_model"] = primary_model["name"]
+            confidence_data["selected_confidence"] = 1.0
+            confidence_data["selected_margin"] = 1.0
+            fallback_models = [m for m in scored if m["name"] != primary_model["name"]][:3]
 
     # ---- Verifier planning ----
     verifier_models = choose_verifier_models(
@@ -184,6 +209,11 @@ def route(
         )
         if multi_plan and multi_plan.expected_quality >= single_plan.expected_quality + 0.03:
             plan = multi_plan
+
+    if cascade_strategy:
+        plan.plan_type = "cascade"
+        plan.verification_strategy = cascade_strategy
+        plan.explanation["cascade_note"] = "Cascade routing triggered: using cheap model with verification."
 
     # A verifier or sequential multi-stage plan can push the end-to-end cost
     # and latency beyond constraints even if each individual model passed
@@ -367,22 +397,29 @@ def record_outcome(
             # Update family-specific and global priors once per observation.
             # Quality is a bounded soft signal, while success remains the
             # dominant outcome label.
+            # Clamp quality_score to [0,1] to keep Beta posterior valid
+            quality_score = max(0.0, min(1.0, quality_score))
             observation = 0.7 * float(bool(success)) + 0.3 * quality_score
             fam_prior = model["priors"]["task_family"].get(task_family)
             if fam_prior:
                 fam_prior["alpha"] += observation
                 fam_prior["beta"] += 1.0 - observation
-                
                 # Decay to prevent stale priors dominating
                 if fam_prior["alpha"] + fam_prior["beta"] > 200:
                     fam_prior["alpha"] = max(fam_prior["alpha"] * 0.95, 1.0)
                     fam_prior["beta"] = max(fam_prior["beta"] * 0.95, 1.0)
-            
-            # Update global prior
-            glob_prior = model["priors"]["global"]
-            glob_prior["alpha"] += observation
-            glob_prior["beta"] += 1.0 - observation
-            if glob_prior["alpha"] + glob_prior["beta"] > 500:
-                glob_prior["alpha"] = max(glob_prior["alpha"] * 0.95, 1.0)
-                glob_prior["beta"] = max(glob_prior["beta"] * 0.95, 1.0)
+            else:
+                # Create a new family prior seeded from this first observation
+                model["priors"]["task_family"][task_family] = {
+                    "alpha": max(1.0 + observation, 1.0),
+                    "beta": max(1.0 + (1.0 - observation), 1.0),
+                }
+            # Always update global prior so it stays current
+            g = model["priors"].get("global")
+            if g:
+                g["alpha"] += observation
+                g["beta"] += 1.0 - observation
+                if g["alpha"] + g["beta"] > 500:
+                    g["alpha"] = max(g["alpha"] * 0.97, 1.0)
+                    g["beta"] = max(g["beta"] * 0.97, 1.0)
             break

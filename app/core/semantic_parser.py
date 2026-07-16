@@ -21,11 +21,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from app.config import SUPPORTED_FORMATS
 from app.core.artifact_inspection import detect_conflicts, inspect_artifacts
-from app.core.domain_classifier import (
-    LEARNED_DOMAIN_CONFIDENCE_THRESHOLD,
-    RISK_METADATA,
-    classify_domain,
-)
+from app.core.embedding_parser import parse_prompt_to_semantic_struct
 from app.core.database import get_all_feedback
 from app.models.schemas import (
     ArtifactProfile,
@@ -70,260 +66,34 @@ def infer_complexity(prompt: str, estimated_tokens: int, semantic: StructuredSem
         return "medium"
 
     p = prompt.lower()
+    
+    # NEW Regex detection for magnitude and explicit advanced concepts
+    import re
+    if re.search(r'\b\d+[- ]page(s)?\b', p) or re.search(r'\b\d+[- ]word(s)?\b', p) or re.search(r'\b(advanced|massive|huge|expert|in-depth)\b', p):
+        return "high"
     high_signals = [
         "entire codebase", "architecture", "multi-file", "multiple files",
         "production ready", "production-ready", "migration", "distributed",
         "concurrent", "refactor", "end-to-end", "e2e", "security audit",
         "threat model", "integration test", "deployment", "all these problems",
+        "complicated", "highly difficult", "extremely difficult", "very hard", 
+        "hard problem", "complex task", "difficult problem", "a lot of like this",
+        "quantum mechanics", "string theory", "advanced physics", "deep learning"
     ]
     medium_signals = [
         "implement", "debug", "review", "test", "design", "analyze",
         "compare", "several", "requirements", "complex",
+        "explain", "detail", "theory", "concept", "mechanics", "how does", "why is",
+        "difference between", "meaning of"
     ]
     high_count = sum(signal in p for signal in high_signals)
     medium_count = sum(signal in p for signal in medium_signals)
-    if high_count >= 2 or (high_count and semantic.primary_family in {"coding", "agent", "reasoning"}):
+    
+    if high_count >= 1 or (high_count and semantic.primary_family in {"coding", "agent", "reasoning"}):
         return "high"
-    if high_count or medium_count >= 2 or semantic.decomposition_needed:
+    if medium_count >= 2 or semantic.decomposition_needed or len(prompt) > 200:
         return "medium"
     return "low"
-
-
-def fallback_structured_semantic_parse(
-    prompt: str,
-    input_formats: List[str],
-    estimated_tokens: int,
-    artifacts: List[ArtifactProfile],
-) -> StructuredSemanticParse:
-    """Heuristic parser. Swappable for a real structured LLM parser."""
-    p = prompt.lower()
-    secondary: List[str] = []
-    required_stages: List[str] = []
-    workflow_graph: List[Dict[str, Any]] = []
-    document_type = "generic"
-    reason_parts = []
-
-    # ---- Dynamic Memory Check (Learned Heuristics) ----
-    try:
-        feedback_examples = get_all_feedback()
-        for ex in feedback_examples:
-            # If the current prompt contains the exact historical prompt, use the corrected family!
-            if ex["prompt"].lower() in p:
-                primary = ex["correct_family"]
-                reason_parts.append(f"Routed via Heuristic Parser (Learned from Memory Bank). Matched historical correction: '{ex['prompt']}'.")
-                
-                # Default safety/domain values for memorized edge cases
-                return StructuredSemanticParse(
-                    primary_family=primary,
-                    secondary_families=[],
-                    required_stages=[primary],
-                    workflow_graph=[{
-                        "stage_id": 1,
-                        "stage_name": primary,
-                        "depends_on": [],
-                        "fallbacks_prepared": True,
-                    }],
-                    domain="general",
-                    risk_tier="low",
-                    risk_type="standard",
-                    expected_output="free_text",
-                    ambiguity_score=0.10,
-                    actionability="advisory",
-                    document_type="generic",
-                    decomposition_needed=False,
-                    needs_verification=False,
-                    parser_confidence=0.99, # Highly confident since it's an exact memorized correction
-                    reason_summary=" ".join(reason_parts)
-                )
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Failed to query Memory Bank in heuristic parser: {e}")
-
-    # ---- Primary family detection ----
-    if any(fmt == "audio" for fmt in input_formats):
-        primary = "audio"
-        secondary = ["summarization"] if "summarize" in p else ["chat"]
-        reason_parts.append("Audio input detected.")
-    elif any(fmt == "video" for fmt in input_formats):
-        primary = "vision"
-        secondary = ["audio", "summarization"]
-        reason_parts.append("Video input implies multimodal understanding.")
-    elif any(fmt == "image" for fmt in input_formats) and _word_match(p, ["extract text", "ocr", "scan", "handwritten"]):
-        primary = "ocr"
-        secondary = ["document_qa"] if _word_match(p, ["summarize", "analyze", "tabulate"]) else []
-        reason_parts.append("Image OCR pattern detected.")
-    elif any(fmt == "pdf" for fmt in input_formats):
-        if _word_match(p, ["summarize", "contract", "document", "obligations", "clause", "review"]):
-            primary = "document_qa"
-            secondary = ["summarization"]
-            reason_parts.append("PDF document understanding pattern detected.")
-        else:
-            primary = "document_qa"
-            reason_parts.append("PDF input defaults to document QA.")
-    elif any(fmt == "spreadsheet" for fmt in input_formats):
-        primary = "document_qa"
-        secondary = ["reasoning"]
-        reason_parts.append("Spreadsheet analysis pattern detected.")
-    elif _word_match(p, ["generate video", "create video", "make a video", "generate a video", "animate", "sora", "runway"]):
-        primary = "video_generation"
-        reason_parts.append("Video generation keywords detected.")
-    elif _word_match(p, ["generate image", "create image", "make a picture", "generate an image", "draw", "midjourney", "dalle", "stable diffusion", "flux"]):
-        primary = "image_generation"
-        reason_parts.append("Image generation keywords detected.")
-    elif _word_match(p, ["python", "javascript", "typescript", "java", "rust", "golang",
-         "c++", "c#", "ruby", "php", "swift", "kotlin", "scala",
-         "react", "vue", "angular", "django", "flask", "fastapi",
-         "docker", "kubernetes", "terraform",
-         "html", "css", "sql", "nosql", "mongodb", "postgresql", "redis",
-         "git", "github", "api", "rest", "graphql", "grpc",
-         "bug", "debug", "refactor", "compile", "deploy",
-         "algorithm", "implement", "codebase", "repository", "pull request",
-         "unit test", "integration test", "ci/cd", "pipeline",
-         "backend", "frontend", "fullstack", "microservice",
-         "regex", "websocket", "middleware", "orm", "migration",
-         "code review", "code", "programming", "software engineer",
-         "npm", "pip", "cargo", "maven", "gradle"]):
-        primary = "coding"
-        reason_parts.append("Coding intent detected.")
-    elif _word_match(p, ["prove", "integral", "equation", "theorem", "calculate", "derivative"]):
-        primary = "mathematics"
-        reason_parts.append("Mathematical reasoning detected.")
-    elif _word_match(p, ["translate", "translation", "language", "bilingual", "multilingual", "spanish", "french", "german", "chinese", "japanese", "arabic", "russian", "portuguese", "hindi", "korean", "italian", "dutch"]):
-        primary = "translation"
-        reason_parts.append("Translation intent detected.")
-    elif _word_match(p, ["agent", "orchestrate", "multi-step plan", "workflow", "autonomous"]):
-        primary = "agent"
-        reason_parts.append("Agentic orchestration intent detected.")
-    elif _word_match(p, ["analyze", "derive", "compare", "reason", "evaluate", "assess"]):
-        primary = "reasoning"
-        reason_parts.append("General reasoning pattern detected.")
-    else:
-        primary = "chat"
-        reason_parts.append("Defaulting to conversational task.")
-
-    # ---- Domain, risk tier, risk type detection ----
-    # Regulated-advice / security keyword branches run FIRST so a statistical
-    # classifier can never override policy-critical paths (medical/legal/finance/
-    # security -> high risk_tier -> Frontier + verifiers, offensive security ->
-    # policy denial). The learned classifier handles business-domain fan-out
-    # (crm/hrm/project/accounts) only when none of these keyword rules fire.
-    learned_conf = 0.0  # embedding classifier's cosine similarity; 0 if it didn't fire
-    if _word_match(p, ["medical", "diagnosis", "patient", "treatment", "symptom", "chest pain", "clinical"]):
-        domain, risk_tier, risk_type = "medical", "high", "regulated_advice"
-        document_type = "medical_record"
-    elif _word_match(p, ["legal", "contract", "compliance", "law", "litigation", "obligation", "clause"]):
-        domain, risk_tier, risk_type = "legal", "high", "regulated_advice"
-        document_type = "contract"
-    elif _word_match(p, ["finance", "tax", "investment", "trading", "portfolio", "stock"]):
-        domain, risk_tier, risk_type = "finance", "high", "regulated_advice"
-        document_type = "financial_document"
-    elif _word_match(p, ["security", "vulnerability", "exploit", "incident", "breach"]):
-        domain, risk_tier, risk_type = "security", "high", "security_sensitive"
-        document_type = "security_report"
-    else:
-        learned_label, learned_conf = classify_domain(prompt)
-        if learned_label and learned_conf >= LEARNED_DOMAIN_CONFIDENCE_THRESHOLD and learned_label in RISK_METADATA:
-            risk_tier, risk_type, document_type = RISK_METADATA[learned_label]
-            domain = learned_label
-            reason_parts.append(f"Learned domain classifier: {learned_label} (conf={learned_conf:.2f}).")
-        else:
-            learned_conf = 0.0
-            if _word_match(p, ["support ticket", "customer", "refund"]):
-                domain, risk_tier, risk_type = "customer_support", "low", "standard"
-                document_type = "support_record"
-            elif primary in ("coding", "agent"):
-                domain, risk_tier, risk_type = "software", "medium", "operational"
-            elif primary in ("reasoning", "mathematics"):
-                domain, risk_tier, risk_type = "science", "medium", "analytical"
-            else:
-                domain, risk_tier, risk_type = "general", "low", "standard"
-
-    # ---- Expected output ----
-    if _word_match(p, ["json", "schema", "structured"]):
-        expected_output = "structured_json"
-    elif primary == "coding":
-        expected_output = "code"
-    else:
-        expected_output = "free_text"
-
-    # ---- Ambiguity ----
-    ambiguity_score = 0.15
-    if _word_match(p, ["maybe", "not sure", "either", "somehow", "approximately", "i think"]):
-        ambiguity_score = 0.55
-    if _word_match(p, ["unclear", "ambiguous", "open-ended"]):
-        ambiguity_score = 0.75
-
-    # ---- Actionability ----
-    actionability = "advisory"
-    if _word_match(p, ["do this", "execute", "send", "file", "submit", "trade", "prescribe"]):
-        actionability = "high"
-
-    # ---- Decomposition and stages ----
-    decomposition_needed = False
-    needs_verification = False
-    if primary == "ocr":
-        required_stages.append("ocr")
-        if _word_match(p, ["tabulate", "summarize", "analyze"]):
-            required_stages.append("document_qa")
-            decomposition_needed = True
-    if primary == "document_qa":
-        required_stages.append("document_qa")
-        if domain in {"legal", "medical", "finance"}:
-            required_stages.append("domain_reasoning")
-            decomposition_needed = True
-            needs_verification = True
-    if expected_output == "structured_json":
-        required_stages.append("structured_output")
-    if primary == "audio":
-        required_stages.append("audio_understanding")
-        if "summarize" in p:
-            required_stages.append("summarization")
-            decomposition_needed = True
-    if primary == "vision":
-        required_stages.append("vision_understanding")
-    if primary == "coding":
-        required_stages.append("coding")
-    if not required_stages:
-        required_stages.append(primary)
-
-    for i, stage in enumerate(required_stages):
-        workflow_graph.append({
-            "stage_id": i + 1,
-            "stage_name": stage,
-            "depends_on": [] if i == 0 else [i],
-        })
-
-    # If the embedding classifier fired, use its cosine similarity as the
-    # parser confidence — this is a real measurement of how close the prompt
-    # was to the training set. Otherwise fall back to a keyword-heuristic
-    # baseline. Both paths still get dinged for ambiguity / decomposition.
-    if learned_conf > 0.0:
-        parser_confidence = learned_conf
-    else:
-        parser_confidence = 0.78
-    if ambiguity_score > 0.5:
-        parser_confidence -= 0.15
-    if decomposition_needed:
-        parser_confidence -= 0.05
-    parser_confidence = max(0.0, min(1.0, parser_confidence))
-
-    return StructuredSemanticParse(
-        primary_family=primary,
-        secondary_families=secondary,
-        required_stages=required_stages,
-        workflow_graph=workflow_graph,
-        domain=domain,
-        risk_tier=risk_tier,
-        risk_type=risk_type,
-        expected_output=expected_output,
-        ambiguity_score=ambiguity_score,
-        actionability=actionability,
-        document_type=document_type,
-        decomposition_needed=decomposition_needed,
-        needs_verification=needs_verification,
-        parser_confidence=parser_confidence,
-        reason_summary=" ".join(reason_parts),
-    )
 
 
 def validate_structured_parse(data: StructuredSemanticParse) -> StructuredSemanticParse:
@@ -334,7 +104,7 @@ def validate_structured_parse(data: StructuredSemanticParse) -> StructuredSemant
     }
     if data.primary_family not in allowed_families:
         raise ValueError(f"Invalid primary family: {data.primary_family}")
-    if data.risk_tier not in {"low", "medium", "high"}:
+    if data.risk_tier not in {"low", "medium", "high", "extreme"}:
         raise ValueError(f"Invalid risk tier: {data.risk_tier}")
     if data.expected_output not in {"structured_json", "free_text", "code"}:
         raise ValueError(f"Invalid expected output: {data.expected_output}")
@@ -343,32 +113,7 @@ def validate_structured_parse(data: StructuredSemanticParse) -> StructuredSemant
     return data
 
 
-def parse_with_llm_interface(
-    prompt: str,
-    input_formats: List[str],
-    estimated_tokens: int,
-    artifacts: List[ArtifactProfile],
-    llm_parser: Optional[Callable] = None,
-) -> StructuredSemanticParse:
-    """Use real LLM parser if provided, else fall back to heuristic."""
-    if llm_parser is not None:
-        parsed = llm_parser(
-            prompt=prompt,
-            input_formats=input_formats,
-            estimated_tokens=estimated_tokens,
-            artifacts=[asdict(a) for a in artifacts],
-        )
-        if isinstance(parsed, StructuredSemanticParse):
-            return validate_structured_parse(parsed)
-        if isinstance(parsed, dict):
-            return validate_structured_parse(StructuredSemanticParse(**parsed))
-        raise ValueError("llm_parser returned unsupported type.")
-    return validate_structured_parse(
-        fallback_structured_semantic_parse(prompt, input_formats, estimated_tokens, artifacts)
-    )
-
-
-def infer_workflow_profile(primary_family: str, domain: str, input_formats: List[str], prompt: str) -> str:
+def infer_workflow_profile(primary_family: str, domain: str, input_formats: List[str], prompt: str, complexity: str = "low") -> str:
     p = prompt.lower()
     if "support" in p or domain == "customer_support":
         return "customer_support_summarization"
@@ -384,7 +129,14 @@ def infer_workflow_profile(primary_family: str, domain: str, input_formats: List
         return "multilingual_chat"
     if domain == "research":
         return "research_drafting"
-    return "balanced"
+    
+    # Default to quality_first for high complexity tasks as per user request
+    if complexity == "high":
+        return "quality_first"
+    if complexity == "medium":
+        return "balanced"
+        
+    return "budget_first"
 
 
 def parse_task_request(
@@ -413,9 +165,7 @@ def parse_task_request(
         artifacts = inspect_artifacts(input_formats=input_formats, prompt=prompt,
                                       artifact_hints=artifact_hints)
 
-    bad = [f for f in input_formats if f not in SUPPORTED_FORMATS]
-    if bad:
-        raise ValueError(f"Unsupported formats: {bad}. Allowed: {SUPPORTED_FORMATS}")
+    # (format validation for user-supplied formats is done above inside the else branch)
 
     # ---- Conflict detection + semantic aggregation ----
     conflict_flags = detect_conflicts(prompt, artifacts)
@@ -432,7 +182,55 @@ def parse_task_request(
                 hard["requires_ocr"] = True
                 break
 
-    soft = parse_with_llm_interface(prompt, input_formats, estimated_tokens, artifacts, llm_parser)
+    # Check memory bank first
+    feedback_examples = get_all_feedback()
+    soft = None
+    for ex in feedback_examples:
+        if ex["prompt"].lower() == prompt.lower():  # exact match only — prevent dangerously broad substring hits
+            primary = ex["correct_family"]
+            soft = StructuredSemanticParse(
+                primary_family=primary,
+                secondary_families=[],
+                required_stages=[primary],
+                workflow_graph=[{
+                    "stage_id": 1,
+                    "stage_name": primary,
+                    "depends_on": [],
+                    "fallbacks_prepared": True,
+                }],
+                domain="general",
+                risk_tier="low",
+                risk_type="standard",
+                expected_output="free_text",
+                ambiguity_score=0.10,
+                actionability="advisory",
+                document_type="generic",
+                decomposition_needed=False,
+                needs_verification=False,
+                parser_confidence=0.99,
+                reason_summary=f"Routed via Heuristic Parser (Learned from Memory Bank). Matched historical correction: '{ex['prompt']}'."
+            )
+            break
+            
+    if soft is None:
+        soft = parse_prompt_to_semantic_struct(prompt)
+        
+        # Populate stages and graph if missing
+        required_stages = soft.required_stages if soft.required_stages else [soft.primary_family]
+        if soft.primary_family == "ocr" and "document_qa" not in required_stages:
+            required_stages.append("document_qa")
+        
+        if not soft.workflow_graph:
+            workflow_graph = []
+            for i, stage in enumerate(required_stages):
+                workflow_graph.append({
+                    "stage_id": i + 1,
+                    "stage_name": stage,
+                    "depends_on": [] if i == 0 else [i],
+                })
+            soft.workflow_graph = workflow_graph
+            soft.required_stages = required_stages
+
 
     # ---- Topic-driven domain/document override ----
     inferred_topics = [a.inferred_topic for a in artifacts if a.inferred_topic]
@@ -449,12 +247,20 @@ def parse_task_request(
         if topic in topic_to_domain:
             soft.domain, soft.risk_tier, soft.risk_type, soft.document_type = topic_to_domain[topic]
 
-    complexity = infer_complexity(prompt, estimated_tokens, soft)
-    workflow_profile = infer_workflow_profile(soft.primary_family, soft.domain, input_formats, prompt)
+    if getattr(soft, "complexity", None) and soft.complexity != "unknown":
+        complexity = soft.complexity
+    else:
+        complexity = infer_complexity(prompt, estimated_tokens, soft)
+    
+    # User request: When task is detected as complex/difficult, increase the difficulty (risk) tier
+    if complexity == "high" and soft.risk_tier in {"low", "medium"}:
+        soft.risk_tier = "high"
+        
+    workflow_profile = infer_workflow_profile(soft.primary_family, soft.domain, input_formats, prompt, complexity)
     requires_verifier = (
         hard["requires_verifier"]
         or soft.needs_verification
-        or soft.risk_tier == "high"
+        or soft.risk_tier in {"high", "extreme"}
         or rc.mandatory_verifier
     )
     safety_sensitive = soft.risk_tier == "high" or soft.risk_type in {"regulated_advice", "security_sensitive"}

@@ -7,10 +7,10 @@ def format_decision_summary(decision: RoutingDecision) -> str:
     lines = []
     rec = decision.decision_record
     lines.append("=== ATLAS Neural Gateway Decision ===")
-    lines.append(f"Decision ID: {rec['decision_id']}")
-    lines.append(f"Status: {rec['status'].upper()}")
-    lines.append(f"Timestamp: {rec['timestamp_utc']}")
-    lines.append(f"Routing latency: {rec['elapsed_ms']:.1f} ms")
+    lines.append(f"Decision ID: {rec.get('decision_id', 'N/A')}")
+    lines.append(f"Status: {str(rec.get('status', 'unknown')).upper()}")
+    lines.append(f"Timestamp: {rec.get('timestamp_utc', 'N/A')}")
+    lines.append(f"Routing latency: {float(rec.get('elapsed_ms', 0)):.1f} ms")
     lines.append("")
 
     ts = rec.get("task_summary", {})
@@ -53,8 +53,8 @@ def format_decision_summary(decision: RoutingDecision) -> str:
         lines.append(f"  Expected quality: {plan.expected_quality:.3f}")
         lines.append(f"  Expected latency: {plan.expected_latency_ms:.0f} ms")
         lines.append(f"  Expected cost: ${plan.expected_cost_usd:.5f}")
-        lines.append(f"  Confidence: {plan.confidence:.3f}")
-        lines.append(f"  Confidence margin: {plan.confidence_margin:.3f}")
+        lines.append(f"  Confidence: {float(plan.confidence or 0):.3f}")
+        lines.append(f"  Confidence margin: {float(plan.confidence_margin or 0):.3f}")
         lines.append("")
         if decision.escalate_to_human:
             lines.append("!! ESCALATION: Human review recommended")
@@ -63,7 +63,10 @@ def format_decision_summary(decision: RoutingDecision) -> str:
         if qb:
             lines.append("-- Quality Breakdown --")
             for k, v in qb.items():
-                lines.append(f"  {k}: {v:.3f}")
+                try:
+                    lines.append(f"  {k}: {float(v):.3f}")
+                except (TypeError, ValueError):
+                    lines.append(f"  {k}: {v}")
             lines.append("")
         sla = plan.explanation.get("sla_check", {})
         if sla:

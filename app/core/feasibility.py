@@ -36,7 +36,7 @@ def feasibility_filter(
         if REQUIRE_MEASURED_EVIDENCE and not evidence.get("eligible_for_auto_route", False):
             reasons[name] = "insufficient_measured_evidence"
             continue
-        if model["ops_dynamic"].get("incident_status") == "red":
+        if (model.get("ops_dynamic") or {}).get("incident_status") == "red":
             reasons[name] = "runtime_incident_red"
             continue
         if rc.allowed_providers:
@@ -64,9 +64,9 @@ def feasibility_filter(
                 reasons[name] = "region_not_supported"
                 continue
 
-        mods = model["modalities"]
-        caps = model["capabilities"]
-        ctx = model["context"]
+        mods = model.get("modalities") or {}
+        caps = model.get("capabilities") or {}
+        ctx = model.get("context") or {}
 
         missing_fmt = [f for f in task.required_formats if not mods.get(f, False)]
         if missing_fmt:
@@ -93,7 +93,7 @@ def feasibility_filter(
         if task.requires_video_generation and not caps.get("video_generation", False):
             reasons[name] = "missing_video_generation"
             continue
-        if ctx["window"] < task.min_context_window:
+        if ctx.get("window", 0) < task.min_context_window:
             reasons[name] = "insufficient_context_window"
             continue
 

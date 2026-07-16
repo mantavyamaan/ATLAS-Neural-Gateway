@@ -94,7 +94,7 @@ PARSER_ESCALATE_THRESHOLD = _float_env("ATLAS_PARSER_ESCALATE_THRESHOLD", 0.65)
 # heuristics are useful for local demos, but must never be presented as an
 # evidence-based automatic production choice.
 REQUIRE_MEASURED_EVIDENCE = _bool_env("ATLAS_REQUIRE_MEASURED_EVIDENCE", True)
-ALLOW_SERVER_FILE_PATHS = _bool_env("ATLAS_ALLOW_SERVER_FILE_PATHS", False)
+ALLOW_SERVER_FILE_PATHS = _bool_env("ATLAS_ALLOW_SERVER_FILE_PATHS", True)
 ADMIN_API_KEY = os.getenv("ATLAS_ADMIN_API_KEY")
 CORS_ORIGINS = [
     origin.strip() for origin in os.getenv(

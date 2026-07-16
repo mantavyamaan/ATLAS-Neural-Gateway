@@ -11,17 +11,17 @@ from typing import Any, Dict, List, Optional
 DB_PATH = os.getenv("ATLAS_DB_PATH", "atlas_registry.db")
 
 _lock = threading.Lock()
-_connection: Optional[sqlite3.Connection] = None
+_local = threading.local()  # per-thread connection storage for true thread safety
 
 
 def _get_connection() -> sqlite3.Connection:
-    """Get or create the shared database connection."""
-    global _connection
-    if _connection is None:
-        _connection = sqlite3.connect(DB_PATH, check_same_thread=False)
-        _connection.execute("PRAGMA journal_mode=WAL")
-        _connection.execute("PRAGMA busy_timeout=5000")
-    return _connection
+    """Get or create a per-thread database connection (thread-safe)."""
+    if not hasattr(_local, "connection") or _local.connection is None:
+        conn = sqlite3.connect(DB_PATH, check_same_thread=True)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        _local.connection = conn
+    return _local.connection
 
 
 def init_db() -> None:
@@ -105,15 +105,17 @@ def delete_model(name: str) -> bool:
         conn = _get_connection()
         cursor = conn.execute("DELETE FROM models WHERE name = ?", (name,))
         conn.commit()
-    return cursor.rowcount > 0
+        return cursor.rowcount > 0  # read rowcount inside the lock while cursor is valid
 
 
 def add_feedback(prompt: str, correct_family: str) -> None:
     """Add a feedback example to the memory bank."""
     with _lock:
         conn = _get_connection()
+        # ON CONFLICT DO UPDATE preserves AUTOINCREMENT id (INSERT OR REPLACE would reset it)
         conn.execute(
-            "INSERT OR REPLACE INTO parser_feedback (prompt, correct_family) VALUES (?, ?)",
+            "INSERT INTO parser_feedback (prompt, correct_family) VALUES (?, ?)"
+            " ON CONFLICT(prompt) DO UPDATE SET correct_family=excluded.correct_family",
             (prompt, correct_family)
         )
         conn.commit()

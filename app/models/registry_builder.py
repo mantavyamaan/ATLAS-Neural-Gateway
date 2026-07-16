@@ -31,7 +31,7 @@ PERF_KEYS = [
     "creative_writing", "instruction_following", "vision_understanding", "ocr",
     "table_understanding", "document_qa", "long_context", "summarization",
     "translation", "audio_understanding", "json_reliability",
-    "spreadsheet_reasoning",
+    "spreadsheet_reasoning", "image_generation", "video_generation",
 ]
 BENCH_KEYS = ["swe_bench", "humaneval", "gpqa", "mmlu", "aime", "mmmu", "docvqa"]
 DOMAIN_KEYS = ["general", "legal", "finance", "medical", "software", "science",
@@ -190,6 +190,16 @@ def _build_performance(name: str, provider: str, tier: str) -> Dict[str, float]:
         perf["audio_understanding"] = round(min(perf["audio_understanding"] + 0.12, 0.99), 3)
     if tier == "Frontier":
         perf["json_reliability"] = round(min(perf["json_reliability"] + 0.08, 0.99), 3)
+        
+    if name in ("DALL-E-3", "dall-e-3"):
+        perf["image_generation"] = 0.99
+    elif "midjourney-v6" in low or "flux-1-pro" in low:
+        perf["image_generation"] = 0.96
+    elif "midjourney" in low or "flux" in low:
+        perf["image_generation"] = 0.94
+    if name in ("Runway-Gen3", "Pika-1") or "sora" in low:
+        perf["video_generation"] = 0.95
+        
     return perf
 
 
@@ -246,16 +256,24 @@ def _build_ops_static(tier: str) -> Dict[str, float]:
     return {"latency_score": round(latency_score, 3), "reliability": reliability}
 
 
+import random
+
 def _build_ops_dynamic(tier: str) -> Dict[str, Any]:
+    # Base latencies
+    base_latency = {"Frontier": 3000.0, "Mid": 1200.0, "Economy": 500.0}.get(tier, 1200.0)
+    # Add realistic jitter (+/- 20%)
+    jitter = random.uniform(-0.2, 0.2) * base_latency
+    actual_latency = round(base_latency + jitter, 1)
+    
     return {
-        "recent_latency_ms": {"Frontier": 3000.0, "Mid": 1200.0, "Economy": 500.0}[tier],
-        "recent_failure_rate": 0.01,
-        "current_availability": 0.999,
-        "rate_limit_pressure": 0.1,
-        "queue_pressure": 0.1,
+        "recent_latency_ms": actual_latency,
+        "recent_failure_rate": round(random.uniform(0.001, 0.02), 4),
+        "current_availability": round(random.uniform(0.99, 0.9999), 4),
+        "rate_limit_pressure": round(random.uniform(0.0, 0.2), 2),
+        "queue_pressure": round(random.uniform(0.0, 0.15), 2),
         "incident_status": "green",
-        "budget_pressure": 0.1,
-        "telemetry_freshness_sec": 60,
+        "budget_pressure": round(random.uniform(0.05, 0.2), 2),
+        "telemetry_freshness_sec": random.randint(10, 120),
     }
 
 

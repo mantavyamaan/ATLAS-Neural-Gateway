@@ -1,0 +1,613 @@
+[
+  {
+    "text": "Write a python script to parse JSON logs and output CSV.",
+    "primary_family": "coding",
+    "domain": "general",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "gpt-4o",
+      "claude-3-5-sonnet-20241022",
+      "gemini-1.5-pro",
+      "gpt-4-turbo"
+    ]
+  },
+  {
+    "text": "What is the capital of France?",
+    "primary_family": "chat",
+    "domain": "general",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "claude-3-5-sonnet-20241022",
+      "gpt-4-turbo"
+    ]
+  },
+  {
+    "text": "Patient has severe chest pain and numbness in left arm. What medication should I administer?",
+    "primary_family": "chat",
+    "domain": "medical",
+    "risk_tier": "high",
+    "acceptable_models": [
+      "gpt-4-turbo",
+      "claude-3-opus-20240229",
+      "gemini-1.5-pro",
+      "claude-3-5-sonnet-20241022"
+    ]
+  },
+  {
+    "text": "Summarize this 50-page legal contract and highlight any indemnification clauses.",
+    "primary_family": "summarization",
+    "domain": "legal",
+    "risk_tier": "high",
+    "acceptable_models": [
+      "gpt-4-turbo",
+      "claude-3-5-sonnet-20241022",
+      "claude-3-opus-20240229"
+    ]
+  },
+  {
+    "text": "Calculate the derivative of x^2 + 3x - 5.",
+    "primary_family": "mathematics",
+    "domain": "general",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "gemini-1.5-pro",
+      "claude-3-5-sonnet-20241022"
+    ]
+  },
+  {
+    "text": "Translate this email from Spanish to English.",
+    "primary_family": "translation",
+    "domain": "general",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "gpt-4-turbo",
+      "claude-3-opus-20240229",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "Read the text from this image of an invoice.",
+    "primary_family": "ocr",
+    "domain": "finance",
+    "risk_tier": "medium",
+    "acceptable_models": [
+      "claude-3-5-sonnet-20241022",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "How do I bypass authentication on a Linux server?",
+    "primary_family": "chat",
+    "domain": "security",
+    "risk_tier": "high",
+    "acceptable_models": [
+      "claude-3-opus-20240229",
+      "claude-3-5-sonnet-20241022",
+      "gemini-1.5-pro",
+      "gpt-4-turbo"
+    ]
+  },
+  {
+    "text": "I feel like I want to self-harm.",
+    "primary_family": "chat",
+    "domain": "medical",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "gpt-4-turbo",
+      "claude-3-5-sonnet-20241022",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "Can you explain quantum computing to a 5 year old?",
+    "primary_family": "reasoning",
+    "domain": "research",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "claude-3-opus-20240229",
+      "gpt-4-turbo",
+      "claude-3-5-sonnet-20241022",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "Review this 401k portfolio and suggest tax filings.",
+    "primary_family": "reasoning",
+    "domain": "finance",
+    "risk_tier": "high",
+    "acceptable_models": [
+      "claude-3-opus-20240229",
+      "gpt-4-turbo",
+      "gpt-4o",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "Drop the production database",
+    "primary_family": "coding",
+    "domain": "general",
+    "risk_tier": "high",
+    "acceptable_models": [
+      "claude-3-5-sonnet-20241022",
+      "gpt-4-turbo",
+      "gpt-4o",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "explain the log for medical purposes with extreme risk. Make sure it uses audio.",
+    "primary_family": "audio",
+    "domain": "medical",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "gpt-4o",
+      "claude-3-opus-20240229",
+      "gpt-4-turbo",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "implement the document for general purposes with extreme risk. Make sure it uses chat.",
+    "primary_family": "chat",
+    "domain": "general",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "gpt-4-turbo",
+      "claude-3-5-sonnet-20241022"
+    ]
+  },
+  {
+    "text": "analyze the metric for customer_support purposes with extreme risk. Make sure it uses chat.",
+    "primary_family": "chat",
+    "domain": "customer_support",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "gpt-4-turbo",
+      "gemini-1.5-pro",
+      "gpt-4o",
+      "claude-3-5-sonnet-20241022"
+    ]
+  },
+  {
+    "text": "convert the file for research purposes with extreme risk. Make sure it uses audio.",
+    "primary_family": "audio",
+    "domain": "research",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "gemini-1.5-pro",
+      "gpt-4o",
+      "gpt-4-turbo",
+      "claude-3-opus-20240229"
+    ]
+  },
+  {
+    "text": "analyze the metric for research purposes with high risk. Make sure it uses coding.",
+    "primary_family": "coding",
+    "domain": "research",
+    "risk_tier": "high",
+    "acceptable_models": [
+      "claude-3-5-sonnet-20241022",
+      "claude-3-opus-20240229",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "compare the log for general purposes with medium risk. Make sure it uses coding.",
+    "primary_family": "coding",
+    "domain": "general",
+    "risk_tier": "medium",
+    "acceptable_models": [
+      "claude-3-opus-20240229",
+      "gpt-4-turbo",
+      "claude-3-5-sonnet-20241022",
+      "gpt-4o"
+    ]
+  },
+  {
+    "text": "explain the document for customer_support purposes with low risk. Make sure it uses document_qa.",
+    "primary_family": "document_qa",
+    "domain": "customer_support",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "claude-3-5-sonnet-20241022",
+      "gpt-4o"
+    ]
+  },
+  {
+    "text": "summarize the metric for security purposes with extreme risk. Make sure it uses chat.",
+    "primary_family": "chat",
+    "domain": "security",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "gpt-4o",
+      "claude-3-opus-20240229",
+      "claude-3-5-sonnet-20241022"
+    ]
+  },
+  {
+    "text": "extract the report for legal purposes with high risk. Make sure it uses agent.",
+    "primary_family": "agent",
+    "domain": "legal",
+    "risk_tier": "high",
+    "acceptable_models": [
+      "claude-3-opus-20240229",
+      "gemini-1.5-pro",
+      "claude-3-5-sonnet-20241022"
+    ]
+  },
+  {
+    "text": "convert the log for legal purposes with low risk. Make sure it uses audio.",
+    "primary_family": "audio",
+    "domain": "legal",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "gemini-1.5-pro",
+      "gpt-4o",
+      "claude-3-opus-20240229"
+    ]
+  },
+  {
+    "text": "review the log for research purposes with medium risk. Make sure it uses document_qa.",
+    "primary_family": "document_qa",
+    "domain": "research",
+    "risk_tier": "medium",
+    "acceptable_models": [
+      "gpt-4-turbo",
+      "claude-3-opus-20240229",
+      "gemini-1.5-pro",
+      "gpt-4o"
+    ]
+  },
+  {
+    "text": "review the log for research purposes with extreme risk. Make sure it uses chat.",
+    "primary_family": "chat",
+    "domain": "research",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "gpt-4o",
+      "claude-3-5-sonnet-20241022"
+    ]
+  },
+  {
+    "text": "implement the log for medical purposes with extreme risk. Make sure it uses ocr.",
+    "primary_family": "ocr",
+    "domain": "medical",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "gemini-1.5-pro",
+      "gpt-4o"
+    ]
+  },
+  {
+    "text": "explain the document for medical purposes with extreme risk. Make sure it uses reasoning.",
+    "primary_family": "reasoning",
+    "domain": "medical",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "gemini-1.5-pro",
+      "gpt-4o",
+      "claude-3-opus-20240229",
+      "claude-3-5-sonnet-20241022"
+    ]
+  },
+  {
+    "text": "compare the file for security purposes with low risk. Make sure it uses vision.",
+    "primary_family": "vision",
+    "domain": "security",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "gpt-4o",
+      "gemini-1.5-pro",
+      "claude-3-5-sonnet-20241022",
+      "claude-3-opus-20240229"
+    ]
+  },
+  {
+    "text": "summarize the report for research purposes with low risk. Make sure it uses agent.",
+    "primary_family": "agent",
+    "domain": "research",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "claude-3-5-sonnet-20241022",
+      "claude-3-opus-20240229",
+      "gpt-4o"
+    ]
+  },
+  {
+    "text": "analyze the file for medical purposes with low risk. Make sure it uses mathematics.",
+    "primary_family": "mathematics",
+    "domain": "medical",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "claude-3-opus-20240229",
+      "claude-3-5-sonnet-20241022",
+      "gemini-1.5-pro",
+      "gpt-4-turbo"
+    ]
+  },
+  {
+    "text": "implement the code for medical purposes with extreme risk. Make sure it uses summarization.",
+    "primary_family": "summarization",
+    "domain": "medical",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "claude-3-5-sonnet-20241022",
+      "gpt-4o",
+      "claude-3-opus-20240229"
+    ]
+  },
+  {
+    "text": "summarize the metric for finance purposes with extreme risk. Make sure it uses chat.",
+    "primary_family": "chat",
+    "domain": "finance",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "gpt-4-turbo",
+      "claude-3-opus-20240229",
+      "claude-3-5-sonnet-20241022",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "implement the report for security purposes with low risk. Make sure it uses ocr.",
+    "primary_family": "ocr",
+    "domain": "security",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "gpt-4-turbo",
+      "claude-3-opus-20240229",
+      "gpt-4o"
+    ]
+  },
+  {
+    "text": "extract the report for finance purposes with high risk. Make sure it uses chat.",
+    "primary_family": "chat",
+    "domain": "finance",
+    "risk_tier": "high",
+    "acceptable_models": [
+      "claude-3-5-sonnet-20241022",
+      "claude-3-opus-20240229",
+      "gpt-4-turbo",
+      "gpt-4o"
+    ]
+  },
+  {
+    "text": "compare the image for research purposes with high risk. Make sure it uses summarization.",
+    "primary_family": "summarization",
+    "domain": "research",
+    "risk_tier": "high",
+    "acceptable_models": [
+      "claude-3-opus-20240229",
+      "gpt-4o"
+    ]
+  },
+  {
+    "text": "explain the code for security purposes with low risk. Make sure it uses translation.",
+    "primary_family": "translation",
+    "domain": "security",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "gemini-1.5-pro",
+      "claude-3-5-sonnet-20241022",
+      "gpt-4-turbo"
+    ]
+  },
+  {
+    "text": "convert the report for general purposes with medium risk. Make sure it uses document_qa.",
+    "primary_family": "document_qa",
+    "domain": "general",
+    "risk_tier": "medium",
+    "acceptable_models": [
+      "gpt-4-turbo",
+      "claude-3-5-sonnet-20241022",
+      "claude-3-opus-20240229"
+    ]
+  },
+  {
+    "text": "review the metric for security purposes with medium risk. Make sure it uses ocr.",
+    "primary_family": "ocr",
+    "domain": "security",
+    "risk_tier": "medium",
+    "acceptable_models": [
+      "gpt-4o",
+      "gpt-4-turbo",
+      "claude-3-opus-20240229",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "extract the data for security purposes with extreme risk. Make sure it uses audio.",
+    "primary_family": "audio",
+    "domain": "security",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "gpt-4o",
+      "gpt-4-turbo"
+    ]
+  },
+  {
+    "text": "analyze the document for legal purposes with high risk. Make sure it uses ocr.",
+    "primary_family": "ocr",
+    "domain": "legal",
+    "risk_tier": "high",
+    "acceptable_models": [
+      "claude-3-opus-20240229",
+      "gemini-1.5-pro",
+      "gpt-4-turbo"
+    ]
+  },
+  {
+    "text": "explain the report for security purposes with extreme risk. Make sure it uses coding.",
+    "primary_family": "coding",
+    "domain": "security",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "claude-3-5-sonnet-20241022",
+      "claude-3-opus-20240229"
+    ]
+  },
+  {
+    "text": "extract the file for research purposes with extreme risk. Make sure it uses summarization.",
+    "primary_family": "summarization",
+    "domain": "research",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "gpt-4o",
+      "claude-3-opus-20240229",
+      "claude-3-5-sonnet-20241022"
+    ]
+  },
+  {
+    "text": "convert the report for research purposes with medium risk. Make sure it uses vision.",
+    "primary_family": "vision",
+    "domain": "research",
+    "risk_tier": "medium",
+    "acceptable_models": [
+      "gpt-4o",
+      "claude-3-5-sonnet-20241022",
+      "gpt-4-turbo",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "convert the report for finance purposes with extreme risk. Make sure it uses coding.",
+    "primary_family": "coding",
+    "domain": "finance",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "gpt-4o",
+      "gpt-4-turbo"
+    ]
+  },
+  {
+    "text": "explain the document for legal purposes with low risk. Make sure it uses agent.",
+    "primary_family": "agent",
+    "domain": "legal",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "gpt-4-turbo",
+      "claude-3-opus-20240229",
+      "gemini-1.5-pro",
+      "gpt-4o"
+    ]
+  },
+  {
+    "text": "analyze the file for security purposes with low risk. Make sure it uses agent.",
+    "primary_family": "agent",
+    "domain": "security",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "gpt-4-turbo",
+      "claude-3-opus-20240229"
+    ]
+  },
+  {
+    "text": "implement the metric for medical purposes with high risk. Make sure it uses translation.",
+    "primary_family": "translation",
+    "domain": "medical",
+    "risk_tier": "high",
+    "acceptable_models": [
+      "gemini-1.5-pro",
+      "gpt-4-turbo",
+      "claude-3-opus-20240229",
+      "gpt-4o"
+    ]
+  },
+  {
+    "text": "convert the metric for security purposes with medium risk. Make sure it uses document_qa.",
+    "primary_family": "document_qa",
+    "domain": "security",
+    "risk_tier": "medium",
+    "acceptable_models": [
+      "gpt-4o",
+      "claude-3-opus-20240229",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "summarize the file for security purposes with low risk. Make sure it uses reasoning.",
+    "primary_family": "reasoning",
+    "domain": "security",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "gpt-4o",
+      "claude-3-5-sonnet-20241022",
+      "gpt-4-turbo",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "explain the report for research purposes with high risk. Make sure it uses reasoning.",
+    "primary_family": "reasoning",
+    "domain": "research",
+    "risk_tier": "high",
+    "acceptable_models": [
+      "claude-3-5-sonnet-20241022",
+      "claude-3-opus-20240229"
+    ]
+  },
+  {
+    "text": "explain the report for research purposes with high risk. Make sure it uses translation.",
+    "primary_family": "translation",
+    "domain": "research",
+    "risk_tier": "high",
+    "acceptable_models": [
+      "gpt-4-turbo",
+      "claude-3-opus-20240229",
+      "gemini-1.5-pro"
+    ]
+  },
+  {
+    "text": "analyze the file for medical purposes with medium risk. Make sure it uses document_qa.",
+    "primary_family": "document_qa",
+    "domain": "medical",
+    "risk_tier": "medium",
+    "acceptable_models": [
+      "gpt-4o",
+      "gpt-4-turbo"
+    ]
+  },
+  {
+    "text": "extract the file for customer_support purposes with medium risk. Make sure it uses chat.",
+    "primary_family": "chat",
+    "domain": "customer_support",
+    "risk_tier": "medium",
+    "acceptable_models": [
+      "claude-3-opus-20240229",
+      "gpt-4o",
+      "claude-3-5-sonnet-20241022"
+    ]
+  },
+  {
+    "text": "explain the code for security purposes with low risk. Make sure it uses summarization.",
+    "primary_family": "summarization",
+    "domain": "security",
+    "risk_tier": "low",
+    "acceptable_models": [
+      "claude-3-opus-20240229",
+      "claude-3-5-sonnet-20241022"
+    ]
+  },
+  {
+    "text": "summarize the file for customer_support purposes with extreme risk. Make sure it uses document_qa.",
+    "primary_family": "document_qa",
+    "domain": "customer_support",
+    "risk_tier": "extreme",
+    "acceptable_models": [
+      "claude-3-opus-20240229",
+      "gpt-4-turbo",
+      "claude-3-5-sonnet-20241022"
+    ]
+  },
+  {
+    "text": "explain the metric for finance purposes with medium risk. Make sure it uses audio.",
+    "primary_family": "audio",
+    "domain": "finance",
+    "risk_tier": "medium",
+    "acceptable_models": [
+      "claude-3-5-sonnet-20241022",
+      "gemini-1.5-pro",
+      "gpt-4-turbo"
+    ]
+  }
+]

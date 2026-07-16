@@ -106,8 +106,9 @@ def generate_multi_stage_plan(
         ))
 
     for v in verifier_models:
-        total_latency += v["ops_dynamic"]["recent_latency_ms"] * 0.5
-        total_cost += estimate_request_cost_usd(v, out_per_stage, task.estimated_output_tokens)
+        total_latency += (v.get("ops_dynamic") or {}).get("recent_latency_ms", 200) * 0.5
+        # Verifier only produces a brief review (not the full task output) — use 300 tokens as output estimate
+        total_cost += estimate_request_cost_usd(v, out_per_stage, 300)
 
     expected_quality = float(np.mean(stage_quality_scores)) if stage_quality_scores else 0.0
     utility = float(np.mean(stage_utilities)) if stage_utilities else 0.0
@@ -122,9 +123,9 @@ def generate_multi_stage_plan(
         expected_latency_ms=total_latency,
         expected_cost_usd=total_cost,
         expected_quality=expected_quality,
-        confidence=confidence_data.get("selected_confidence", confidence_data["top_confidence"]),
+        confidence=confidence_data.get("selected_confidence", confidence_data.get("top_confidence", 0.0)),
         utility=utility,
-        confidence_margin=confidence_data.get("selected_margin", confidence_data["margin"]),
+        confidence_margin=confidence_data.get("selected_margin", confidence_data.get("margin", 0.0)),
         profile_used=profile_name,
         explanation={
             "plan_type": "multi_stage",
@@ -142,6 +143,9 @@ def generate_multi_stage_plan(
         trace={
             "router_version": ROUTER_VERSION,
             "scoring_version": SCORING_VERSION,
+            "parser_version": PARSER_VERSION,
+            "policy_version": POLICY_VERSION,
+            "registry_version": REGISTRY_VERSION,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         },
     )
@@ -155,6 +159,7 @@ def generate_single_model_plan(
     policy: PolicyDecision,
     fallback_models: List[Dict[str, Any]],
     profile_name: str,
+    cascade_strategy: Optional[str] = None,
 ) -> ExecutionPlan:
     est_latency = estimate_request_latency_ms(model, task)
     est_cost = estimate_request_cost_usd(model, task.estimated_tokens, task.estimated_output_tokens)
@@ -175,14 +180,14 @@ def generate_single_model_plan(
         ))
 
     for v in verifier_models:
-        v_latency = v["ops_dynamic"]["recent_latency_ms"] * 0.5
+        v_latency = (v.get("ops_dynamic") or {}).get("recent_latency_ms", 200) * 0.5
         v_cost = estimate_request_cost_usd(v, task.estimated_output_tokens, 500)
         est_latency += v_latency
         est_cost += v_cost
 
     return ExecutionPlan(
         plan_id=str(uuid.uuid4())[:12],
-        plan_type="single_model",
+        plan_type="cascade" if cascade_strategy else "single_model",
         selected_model=model["name"],
         stage_routes=stage_routes,
         fallback_models=[fb["name"] for fb in fallback_models[:3]],
@@ -190,9 +195,9 @@ def generate_single_model_plan(
         expected_latency_ms=est_latency,
         expected_cost_usd=est_cost,
         expected_quality=model["q"]["runtime_adjusted_mean"],
-        confidence=confidence_data.get("selected_confidence", confidence_data["top_confidence"]),
+        confidence=confidence_data.get("selected_confidence", confidence_data.get("top_confidence", 0.0)),
         utility=model["u"]["expected_utility"],
-        confidence_margin=confidence_data.get("selected_margin", confidence_data["margin"]),
+        confidence_margin=confidence_data.get("selected_margin", confidence_data.get("margin", 0.0)),
         profile_used=profile_name,
         explanation={
             "primary_model": model["name"],
@@ -238,4 +243,5 @@ def generate_single_model_plan(
             "confidence_simulations": confidence_data["n_simulations"],
             "win_probabilities": confidence_data["win_probabilities"],
         },
+        verification_strategy=cascade_strategy,
     )

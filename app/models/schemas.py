@@ -92,6 +92,7 @@ class StructuredSemanticParse:
     needs_verification: bool = False
     parser_confidence: float = 0.78
     reason_summary: str = ""
+    complexity: Optional[str] = None
 
 
 # --------------------------------------------------------------------------
@@ -199,6 +200,7 @@ class ExecutionPlan:
     profile_used: str
     explanation: Dict[str, Any]
     trace: Dict[str, Any]
+    verification_strategy: Optional[str] = None
 
 
 @dataclass
