@@ -1,135 +1,197 @@
 # ATLAS Neural Gateway
 
-## 📖 Overview
+**Adaptive Task and LLM Allocation System** — a complete, end-to-end AI agent and neural routing gateway, exposed as a FastAPI service. ATLAS decides *which model or execution plan* should handle a request, taking into account task requirements, governance policy, runtime health, cost, latency, uncertainty, and SLAs. It then acts as an intelligent proxy to actively generate and stream the final response directly back to the user.
 
-ATLAS Neural Gateway is a **pure‑Python routing engine** that selects the best large‑language‑model (LLM) for any user request **without ever calling another LLM** during the decision.  It works by:
+## How it's organized
 
-1. **Parsing the prompt** once with a tiny ONNX semantic parser to extract its features (task family, complexity, risk tier, required workflow stages).
-2. **Fetching live model metadata** from the OpenRouter API (pricing, context window, safety tags, etc.) and turning each model into a rich dictionary stored in a local SQLite registry.
-3. **Scoring each candidate** with a set of deterministic utility dimensions (quality, cost, latency, reliability, risk‑fit, runtime‑health, etc.).
-4. **Running a 1 500‑iteration Thompson‑Sampling Monte‑Carlo simulation** (fully vectorised with NumPy) to estimate a win‑probability for every model.
-5. **Choosing the model with the highest win‑probability** as the primary route, while also providing a confidence score and fallback options.
-
-All of this happens in **sub‑second latency** even with a registry of **~450 models**.
-
----
-
-## 🏗️ Architecture Diagram (text version)
 ```
-[User Prompt] ──► [ONNX Semantic Parser] ──► TaskFeatures
-      │                                         │
-      ▼                                         ▼
-[OpenRouter Sync] ──► Model Registry (SQLite) ──► Scoring Engine
-                                                          │
-                                                          ▼
-                                                    Thompson Sampling
-                                                          │
-                                                          ▼
-                                                   [Routing Decision]
+atlas_neural_gateway/
+├── app/
+│   ├── main.py                 # FastAPI app entrypoint (uvicorn target)
+│   ├── config.py                # version stamps + confidence thresholds
+│   ├── models/
+│   │   ├── schemas.py            # internal dataclasses (TaskFeatures, ExecutionPlan, ...)
+│   │   ├── catalog.py             # provider -> model name catalog
+│   │   ├── registry_builder.py     # fallback heuristics for unmapped models
+│   │   └── real_benchmarks.json    # ground-truth benchmark overrides
+│   ├── core/
+│   │   ├── database.py              # SQLite database and persistence layer
+│   │   ├── openrouter_sync.py       # fetches live models and pricing from OpenRouter API
+│   │   ├── artifact_inspection.py   # PDF/image/audio/video/xlsx/pptx inspection
+│   │   ├── semantic_parser.py        # deterministic + heuristic task parsing
+│   │   ├── feasibility.py             # hard constraint filtering
+│   │   ├── policy.py                   # governance / policy engine
+│   │   ├── scoring.py                   # Bayesian quality, Pareto, utility, confidence
+│   │   ├── planning.py                   # single-model & multi-stage plan generation
+│   │   ├── router.py                      # route() — the main pipeline
+│   │   └── formatting.py                   # human-readable decision summaries
+│   └── api/
+│       ├── schemas.py                       # pydantic request/response models
+│       └── routes.py                         # FastAPI endpoints
+├── tests/
+│   └── test_router.py                         # end-to-end scenario tests
+├── requirements.txt
+├── .env.example
+└── README.md
 ```
 
----
+This mirrors the routing pipeline described in the ATLAS design doc:
 
-## 📦 Core Components
+```
+Request -> Artifact Inspection -> Semantic Parsing -> Task Representation
+   -> Feasibility Filtering -> Policy Enforcement -> Bayesian Quality
+   -> Pareto Reduction -> Utility Scoring -> Confidence Estimation
+   -> Execution Plan -> Route / Escalate / Abstain
+```
 
-| Component | File | Responsibility |
-|-----------|------|----------------|
-| **Semantic Parser** | `app/core/semantic_parser.py` | Detects task family, risk tier, complexity, required stages using keyword‑based heuristics. |
-| **OpenRouter Sync** | `app/core/openrouter_sync.py` | Pulls live model data from OpenRouter, builds a unified registry entry, **removes any reliance on `real_benchmarks.json`**. |
-| **Database Layer** | `app/core/database.py` | Simple SQLite wrapper with thread‑local connections; stores the model registry. |
-| **Scoring** | `app/core/scoring.py` | Calculates static scores (cost, latency, reliability, risk‑fit, runtime health) and attaches contextual quality. |
-| **Pareto Frontier** | `app/core/scoring.py` | Reduces the candidate set to the non‑dominated elite models. Optimised to extend the frontier instead of replacing it. |
-| **Thompson Sampling** | `app/core/scoring.py` | Vectorised Monte‑Carlo simulation (1500 draws). Uses a deterministic seed based on model names + task family. |
-| **Planning** | `app/core/planning.py` | Builds single‑model or multi‑stage execution plans and applies cost/latency estimations. |
-| **Router** | `app/core/router.py` | Orchestrates the whole pipeline, applies the confidence threshold, and returns the final `RoutingDecision`. |
-| **Embedding Parser (ONNX)** | `app/core/embedding_parser.py` | Light‑weight embedding model used only for the semantic parser. |
-
----
-
-## 🔄 Dynamic Benchmark Sync (no `real_benchmarks.json`)
-
-* The previous version shipped a static `real_benchmarks.json` file and fell back to it when the OpenRouter API lacked performance numbers.
-* **Now:** `openrouter_sync.py` **does not read any file**. All scoring data is derived from live OpenRouter metadata (`pricing`, `context_length`, `capabilities`, etc.) and from **on‑the‑fly** calculations such as:
-  * **Relative cost score** – normalises input/output cost to a per‑million‑token basis.
-  * **Utility dimensions** – cost, latency, reliability, risk‑fit, runtime health.
-* The `evidence` block is always set to `{"eligible_for_auto_route": false}` because we no longer have curated benchmark evidence.
-
----
-
-## ⚡ Performance Optimisations (what changed?)
-
-| Issue | Old Behaviour | New Optimised Behaviour |
-|-------|----------------|------------------------|
-| **Deep copies** | `deepcopy()` was used on every model during scoring and Thompson sampling – ~400 KB per model × 447 models = heavy memory churn. | Replaced with shallow copies (`model.copy()`) or pure read‑only access. |
-| **Pareto frontier O(N²)** | Re‑computed vectors for each comparison inside nested loops. | Pre‑computed the Pareto vectors once, then compared simple tuples. Also **extends** the frontier instead of discarding it when the set is too small. |
-| **Thompson sampling loops** | Python `for` loops over 1500 simulations, calling `bounded_beta_sample` per model – several seconds. | Fully vectorised using NumPy: generate a `(1500, N_models)` beta matrix in one call, compute utilities with broadcasting, and count wins via `np.argmax`. Latency dropped from ~2 s to **≈0.05 s** on a 447‑model registry. |
-| **Deterministic seeding** | Random seed was recomputed each run but not guaranteed to be reproducible across processes. | Seed now hashes the sorted list of model names + task family, guaranteeing identical Monte‑Carlo results for identical inputs. |
-| **Confidence threshold** | Fixed at 0.4, but could be overridden incorrectly. | Still 0.4 by default, but the routing code now logs the confidence and automatically escalates/abstains when `top_confidence < 0.4`. |
-
----
-
-## 🧭 How Routing Works – Step‑by‑Step (simple words)
-
-1. **User sends a prompt** to the FastAPI server (`/route`).
-2. **Parser runs once** – extracts which *family* (chat, coding, etc.), how *complex* it is, and whether it needs *multiple stages*.
-3. **Registry is queried** – all models are loaded from the SQLite DB.
-4. **Eligibility filter** – models that don’t support the required family, exceed the user’s latency/cost limits, or are marked unsafe are discarded.
-5. **Contextual quality is attached** – each model receives a `q` dict with a runtime‑adjusted mean quality, uncertainty, and other stats.
-6. **Pareto frontier** – from the eligible set, the engine keeps only the *non‑dominated* models (those that are not strictly worse on every utility dimension).
-7. **Utility scoring** – each frontier model gets a single deterministic utility value based on the selected weighting profile (`balanced`, `quality_first`, `budget_first`, etc.).
-8. **Thompson Sampling** – 1 500 simulations are run **in parallel** using NumPy. For each simulation the model’s quality is jittered according to its uncertainty, the utility is recomputed, and the model with the highest utility gets a “win”.
-9. **Win probabilities** – after the simulations, each model’s win count is divided by 1 500. The model with the highest win probability becomes the *primary* candidate; the second‑best becomes a *fallback*.
-10. **Confidence** – the primary model’s win probability is stored as the router’s confidence score. If the confidence < 0.4, the router either **abstains** or **escalates** to a human operator (configurable).
-11. **Response** – the server returns a JSON payload containing the selected model name, confidence, fallback list, and the full planning details (cost estimate, latency estimate, etc.).
-
----
-
-## 🛠️ Running the Service
+## Setup (VS Code / local)
 
 ```bash
-# 1️⃣ Install dependencies (Python 3.12)
 python -m venv .venv
-.venv\Scripts\activate
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-# 2️⃣ Initialise the SQLite registry (creates atlas_registry.db)
-python -c "from app.core.database import init_db; init_db()"
-
-# 3️⃣ Pull the latest OpenRouter model list and sync it to the DB
-python scripts/run_benchmark_sync.py   # (or) python -c "from app.core.openrouter_sync import sync_openrouter_models; sync_openrouter_models()"
-
-# 4️⃣ Start the FastAPI server (Uvicorn)
-uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
-The server will now be reachable at `http://127.0.0.1:8080/route`. Send a POST request with JSON `{"prompt": "…"}` and you’ll receive the routing decision.
+Optional artifact-inspection libraries (`pymupdf`, `Pillow`, `openpyxl`,
+`python-pptx`, `mutagen`) are in `requirements.txt` but the router degrades
+gracefully if any are missing — it just falls back to prompt-keyword
+heuristics for that modality. `ffprobe` (from ffmpeg) is used for
+audio/video duration if present on the host `PATH`.
 
----
+## Prerequisites (ONNX & Vector Embeddings)
 
-## 📊 Monitoring & Debugging
+ATLAS uses a high-precision K-Nearest Neighbors (KNN) Vector Embedding Engine powered by **BAAI/bge-large-en-v1.5** to semantically parse and categorize prompts before they are routed. 
 
-* **Latency** – The `estimate_confidence` function prints the time for each request (≈0.05 s with 447 models). 
-* **Win‑probability** – Look at `decision.confidence` in the JSON response to see how sure the router is. 
-* **Database** – Inspect `atlas_registry.db` with any SQLite viewer to see the raw model entries.
-* **Logging** – All major steps use the standard `logging` module; adjust `logging.basicConfig(level=logging.DEBUG)` for more verbosity.
+Because it uses `fastembed` (ONNX Runtime), it runs **entirely on the CPU** in under 70 milliseconds and requires zero GPU VRAM. It operates 100% locally and offline without any need for an Ollama server or PyTorch.
 
----
+1. **Install Python 3.10+**
+2. The embedding model is automatically downloaded and cached by `fastembed` on the very first startup. No manual downloading is required.
 
-## 🤝 Contributing
+## Run the Service & UI
 
-1. Fork the repository.
-2. Create a feature branch (`git checkout -b my‑feature`).
-3. Ensure the test suite passes (`pytest -q`).
-4. Submit a Pull Request with a clear description of the change.
+ATLAS now features a premium **Streamlit Frontend** with Glassmorphism design, Custom Model Allowlisting, and Stage 2 LLM execution (directly streaming responses from OpenRouter using the dynamically selected optimal model).
 
-Please keep the **no‑LLM‑in‑the‑middle** rule: any routing‑related logic must be pure mathematics or deterministic heuristics.
+You need two terminals to run the full stack:
 
----
+**Terminal 1 (Backend API):**
+```bash
+uvicorn app.main:app --reload --port 8000 // uvicorn app.main:app --reload --port 8080 if already have something running in that port
+```
+*(Interactive Swagger docs available at **http://127.0.0.1:8000/docs**)*
 
-## 📜 License
+**Terminal 2 (Frontend Dashboard):**
+```bash
+streamlit run frontend.py   // streamlit run frontend.py --server.port 8505   if already have something running in that port
+```
 
-This project is released under the **MIT License** – you are free to use, modify, and redistribute it.
+## Example request
 
----
+```bash
+curl -X POST http://127.0.0.1:8000/route \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Implement a concurrent web crawler in Python with rate limiting and structured JSON output.",
+    "input_formats": ["text"],
+    "estimated_tokens": 3000,
+    "estimated_output_tokens": 4000,
+    "profile_name": "balanced"
+  }'
+```
 
-**Happy routing!** If you run into any issues, feel free to open an issue on GitHub or contact the maintainers.
+Response shape (abridged):
+
+```json
+{
+  "abstain": false,
+  "escalate_to_human": false,
+  "selected_plan": {
+    "plan_id": "...",
+    "plan_type": "single_model",
+    "selected_model": "GPT-5.4",
+    "fallback_models": ["Claude-Sonnet-4.6", "Gemini-3-Pro"],
+    "verifier_models": [],
+    "expected_latency_ms": 2150.4,
+    "expected_cost_usd": 0.0182,
+    "confidence": 0.61
+  },
+  "decision_record": { "...": "full auditable trace" },
+  "summary_text": "=== Atlas Router Decision === ..."
+}
+```
+
+## Endpoints
+
+| Method | Path             | Purpose |
+|--------|------------------|---------|
+| POST   | `/route`         | Run the full routing pipeline for a request (Control Plane) |
+| POST   | `/execute`       | Run the pipeline, execute the LLM via OpenRouter, and verify it (Data Plane) |
+| POST   | `/train_parser`  | Dynamically train the vector embedding matrix with a correction |
+| POST   | `/outcome`       | Feed an observed outcome back into a model's Task-Conditional Bayesian priors |
+| GET    | `/models`        | List the canonical registry (summary view) |
+| GET    | `/models/{name}` | Full registry entry for one model |
+| POST   | `/models`        | Dynamically add or update a model in the SQLite registry |
+| DELETE | `/models/{name}` | Remove a model from the registry |
+| GET    | `/versions`      | Current version stamps for every subsystem |
+| GET    | `/health`        | Liveness probe |
+
+## The Model Registry (Dynamic SQLite + OpenRouter)
+
+ATLAS uses a real-time, dynamic **SQLite database** to store its model registry, making it a production-ready routing engine.
+
+When the application starts, `app/core/openrouter_sync.py` connects to the **OpenRouter API** to download the latest available models, their exact context window limits, and live pricing.
+
+To ensure routing decisions are mathematically precise, it cross-references these models against `app/models/real_benchmarks.json`, which contains manually curated, **ground-truth benchmark scores** (like SWE-Bench and MMLU equivalents) for flagship models like GPT-4o, Claude 3.5 Sonnet, and Llama 3. 
+
+For obscure community models that aren't mapped in our benchmark JSON, it explicitly defaults them to an "insufficient evidence" state. By default, `ATLAS_REQUIRE_MEASURED_EVIDENCE=true` prevents these unknown models from receiving auto-routed traffic unless the tenant overrides the behavior. Tests are also run deterministically to ensure the suite is blazingly fast and works entirely offline.
+
+## The Semantic Vector Parsing Engine
+
+By default, task understanding in ATLAS is handled by the **EmbeddingSemanticParser** in `app/core/embedding_parser.py`. It mathematically categorizes requests by computing the Dense Vector against three highly-trained **Logistic Regression Classifiers** and a local **Cross-Encoder** reranker.
+
+* **Dynamic Training & CI Gate:** You can instantly make the Gateway smarter using the **Train the Engine** UI. When you submit a correction, the backend API (`/train_parser`) encodes your exact prompt into a new vector. Before saving it permanently, it runs a strict local Evaluation Suite. If the new vector degrades the matrix below 90% accuracy, it blocks the change and reverts the RAM matrix, ensuring poison-proof learning.
+* **Deterministic Safety Override Layer:** The system automatically escalates risky keywords (like "suicide" or "drop table") to High/Extreme risk tiers, strictly enforcing safety regardless of statistical voting.
+
+## Testing
+
+```bash
+pytest tests/ -v
+```
+
+## Production requirements
+
+ATLAS is a routing control plane, not a model executor. A production
+deployment must invoke the selected plan in a separate execution service,
+verify outputs, and submit authenticated outcomes. Name-derived fallback
+scores are development fixtures only: with the default
+`ATLAS_REQUIRE_MEASURED_EVIDENCE=true`, models without curated benchmark or
+measured production evidence are rejected before scoring. Populate the
+registry with versioned capability probes, task-family evaluations, and real
+provider telemetry before enabling automatic routing.
+
+Set `ATLAS_ADMIN_API_KEY` before enabling the mutable model and outcome
+endpoints. Do not expose server-local `files` paths; use authenticated uploads
+or object-store references instead.
+
+Tests mirror the original design-doc demonstration scenarios: a coding
+task, a high-risk legal contract review, audio summarization, an
+offensive-security policy denial, a budget-constrained support task,
+long-context research with citations, and file-driven conflict detection.
+
+## Design principles (from the spec)
+
+1. **Hard constraints override soft preferences** — feasibility filtering
+   runs before any scoring.
+2. **Policy is independent of scoring** — governance never hides inside
+   utility weights.
+3. **Runtime conditions matter** — latency, availability, queue pressure,
+   and incident status all feed into routing, not just benchmarks.
+4. **Uncertainty is quantified** — Thompson Sampling estimates confidence
+   rather than returning a bare point estimate.
+5. **Derive signals, don't duplicate them** — everything traces back to
+   the canonical registry.
+6. **Every decision is reproducible** — each `RoutingDecision` carries a
+   reproducibility hash plus per-subsystem version stamps.
+7. **Multi-stage workflows get structured planning** — OCR, document QA,
+   summarization, etc. can be routed to different specialist models within
+   one plan.
+8. **Mathematical Purity** — Cost/Latency are strictly enforced as absolute filters, ranking uses purely absolute scale utilities (no min-maxing), Bayesian priors never double count observations, and confidence scores explicitly distinguish between Thompson Sampling win-rates and actual predicted task success.

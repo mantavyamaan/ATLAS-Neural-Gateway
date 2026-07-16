@@ -11,11 +11,11 @@ Here is exactly what happens under the hood from the moment you click "Route Req
 ## 🛑 Stage 1: The Vector Embedding Parsing Engine
 The moment you click **"Route Request"**, your prompt and any uploaded files are intercepted by a **Pure Vector Embedding Engine** (`BAAI/bge-large-en-v1.5`) running locally inside the FastAPI backend. Unlike traditional routers that rely on slow LLM generation or rigid regex keywords, this parser uses pure mathematics to achieve sub-millisecond categorization.
 
-### The Logistic Regression & Cross-Encoder Architecture
+### The K-Nearest Neighbors (KNN) Architecture
 1. **Mathematical Coordinate Mapping:** The BAAI embedding model instantly converts your natural language prompt into a massive 1024-dimensional mathematical coordinate vector.
-2. **Logistic Regression Classifiers:** The gateway passes this vector through three distinct, highly-trained Logistic Regression models to strictly predict the task family, domain, and risk tier, eliminating hallucination boundaries.
-3. **Cross-Encoder Reranking:** If the Logistic Regression is unsure (i.e., a narrow probability margin between the top two predicted classes), the Engine automatically triggers a secondary local Cross-Encoder (`BAAI/bge-reranker-base`) as a strict tie-breaker.
-4. **CI-Gated Adaptation:** You can hit **Train the Engine** in the UI when the gateway misclassifies a prompt. The `/train_parser` API endpoint encodes your corrected prompt, but before saving it, it runs a strict **Golden Evaluation Suite** in a sandbox. If the new vector degrades the matrix below 90% accuracy, the gateway instantly reverts the RAM matrix, ensuring the model can never be poisoned.
+2. **The Memory Bank:** The gateway maintains a highly diverse, flat JSON dataset (`semantic_examples.json`) of nearly 3,000 real-world examples, all pre-calculated into a lightning-fast `.npy` coordinate matrix in memory.
+3. **Softmax Voting:** The engine finds the mathematical nearest neighbors (the closest coordinates in the dataset) to your prompt. It then applies a temperature-weighted Softmax formula, allowing the neighbors to "vote" independently on what task family, domain, and risk tier your prompt belongs to.
+4. **Instant Adaptation:** Because this relies entirely on the dataset coordinate space, the gateway learns your exact workflow and edge cases on the fly. You can hit **Train the Engine** in the UI when the gateway misclassifies a prompt. The `/train_parser` API endpoint encodes your corrected prompt, mathematically hot-swaps the new vector directly into RAM, and permanently saves it to the JSON file. It instantly becomes precise on the very next request—bypassing the need to restart the server or retrain neural networks!
 
 ### Deterministic Safety Override
 While statistical embeddings are brilliant for general intent parsing, they are not trusted with absolute safety. The engine includes a **Monotonic Safety Net**:
@@ -50,7 +50,7 @@ Now the Gateway has a list of "Feasible Candidates". It's time to find the absol
    * **Reliability** (Uptime percentage)
    * **Risk Fit** (Does it hallucinate on medical/legal queries?)
    * **Runtime Health** (Is the provider currently experiencing an outage?)
-3. **Thompson Sampling & Task-Conditional Priors:** Instead of just picking the highest static score, the gateway runs a probabilistic simulation (using a Beta Distribution) to balance **Exploration vs. Exploitation**. Crucially, the engine uses **Task-Conditional Priors**—if a model succeeds at "coding", its `alpha` score for coding goes up, but its "OCR" score remains unchanged. This prevents domain bleed.
+3. **Thompson Sampling:** Instead of just picking the highest static score, the gateway runs a probabilistic simulation (using a Beta Distribution) to balance **Exploration vs. Exploitation**. It mathematically calculates the **Win Probability** (the exact % chance that a model will outperform all others for this specific task).
 
 ---
 
@@ -61,19 +61,18 @@ If your organization has a policy that says *"Never use OpenAI models for Financ
 
 ---
 
-## 🗺️ Stage 5: FrugalGPT Cascades & Plan Generation
-The Gateway now has the #1 winning model. It decides if your prompt needs a **Single-Shot Execution** or a **Frugal Cascade**.
+## 🗺️ Stage 5: Plan Generation (Single vs. Multi-Stage)
+The Gateway now has the #1 winning model. It decides if your prompt needs a **Single-Model Plan** or a **Multi-Stage Plan**.
 
-* **Standard Tasks:** Generates a standard plan using the winning flagship model and designates 2 "Fallback Models" just in case the primary API goes down.
-* **Low-Complexity / Low-Risk Tasks:** The router intentionally intercepts the decision and **cascades to the cheapest, fastest model available** (e.g., `gemini-1.5-flash`). It configures a strict non-LLM Verification Strategy (like Python `ast` or `json.schema`).
+* **Simple Tasks:** Uses a Single-Model Plan and designates 2 "Fallback Models" just in case the primary API goes down.
+* **Complex/Extreme Tasks:** If your prompt is highly ambiguous or asks for verifiable facts, it creates a Multi-Stage Plan. It might pick `claude-3.5-sonnet` to generate the code, but assign `gpt-4o-mini` as a **Verifier** to double-check the code before returning it to you.
 
 ---
 
-## 🚀 Stage 6: The Data Plane Proxy (/execute)
-The routing plan is generated! Instead of stopping there, the Gateway natively handles the execution and verification loop via the new `POST /execute` proxy endpoint.
+## 🚀 Stage 6: The Frontend Handoff & Generation
+The routing is complete! The FastAPI backend sends the final `decision_record` back to the Streamlit UI in under **150 milliseconds**.
 
-1. The API intercepts the plan and your provided `x-openrouter-key`.
-2. For Frugal Cascades, it hits OpenRouter using the ultra-cheap model.
-3. It seamlessly extracts the markdown artifact block from the response and pumps it through our **Deterministic Verifiers** (running pure Python `ast` or JSON validation in the backend—zero LLM calls required).
-4. If the cheap model passes verification, the Gateway returns the response to you, saving you ~90% on API costs.
-5. If the cheap model hallucinates or outputs broken syntax, the Gateway automatically falls back, pings OpenRouter again with the expensive flagship model (like `claude-3-5-sonnet`), and returns the perfect response!
+1. The UI renders the beautiful green **"Routing successful!"** banner.
+2. It displays the **Selected Model**, Estimated Latency, Estimated Cost, and the Gateway's Confidence Level.
+3. You review the choice.
+4. When you click **"Generate Response with Selected Model"**, the UI takes the winning model ID and your OpenRouter API Key, connects directly to the OpenRouter generation endpoint, and streams the AI's response directly onto your screen!
