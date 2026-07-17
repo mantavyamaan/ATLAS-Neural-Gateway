@@ -178,12 +178,18 @@ def route(
     is_coding = (task.primary_family == "coding" or "coding" in task.secondary_families)
     is_json = task.requires_json
     cascade_strategy = None
-    if task.complexity == "low" and task.risk_tier == "low" and (is_coding or is_json):
-        cheap_candidates = ["gemini-1.5-flash", "llama-3.1-8b-instant"]
-        cheap_models = [m for m in all_scored if any(c in m["name"] for c in cheap_candidates)]
+    if task.complexity == "low" and task.risk_tier == "low":
+        cheap_candidates = ["gemini-2.5-flash", "llama-3.1-8b", "llama-3.2-3b"]
+        cheap_models = [m for m in all_scored if any(c in m["name"].lower() for c in cheap_candidates)]
         if cheap_models:
             # Only set cascade when a cheap model actually exists in the registry
-            cascade_strategy = "ast_execution" if is_coding else "json_schema"
+            if is_coding:
+                cascade_strategy = "ast_execution"
+            elif is_json:
+                cascade_strategy = "json_schema"
+            else:
+                cascade_strategy = "semantic_similarity"
+                
             primary_model = cheap_models[0]
             # Cascade is an explicit override that bypasses Thompson Sampling uncertainty,
             # so we fabricate a 1.0 confidence to guarantee it passes the abstention safety net.
@@ -258,7 +264,13 @@ def route(
     # ---- 10. Abstention and escalation ladder ----
     abstain = False
     escalate = policy.must_escalate
-    minimum_confidence = max(CONFIDENCE_ABSTAIN_THRESHOLD, task.request_constraints.min_confidence)
+    
+    # Dynamic confidence scaling for massive registries:
+    # When N models is large, Thompson win probability dilutes.
+    # We require the winner to be at least 3x better than random chance (1/N), capped at the absolute threshold.
+    dynamic_threshold = min(CONFIDENCE_ABSTAIN_THRESHOLD, 3.0 / max(1, len(scored)))
+    minimum_confidence = max(dynamic_threshold, task.request_constraints.min_confidence)
+    
     if selected_win_probability < minimum_confidence:
         abstain = True
         escalate = True
