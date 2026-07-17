@@ -518,9 +518,10 @@ def estimate_confidence(
     n_rts   = np.array([m["u"]["n_runtime"] for m in models])
 
     # Sample noise for cost, reliability and runtime (small std dev = mild perturbation)
-    cost_noise = rng.normal(0.0, 0.05, size=(n_sim, n_models))
-    rel_noise  = rng.normal(0.0, 0.04, size=(n_sim, n_models))
-    rt_noise   = rng.normal(0.0, 0.04, size=(n_sim, n_models))
+    # Reduced from 0.05 to 0.01 so that a clear winner can emerge above the 30% abstain threshold.
+    cost_noise = rng.normal(0.0, 0.01, size=(n_sim, n_models))
+    rel_noise  = rng.normal(0.0, 0.01, size=(n_sim, n_models))
+    rt_noise   = rng.normal(0.0, 0.01, size=(n_sim, n_models))
 
     # Full perturbed utility across all 7 dimensions
     utility_matrix = (

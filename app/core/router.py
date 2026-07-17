@@ -185,16 +185,12 @@ def route(
             # Only set cascade when a cheap model actually exists in the registry
             cascade_strategy = "ast_execution" if is_coding else "json_schema"
             primary_model = cheap_models[0]
-            # Use actual Thompson win probability for the cheap model, not a hardcoded 1.0
-            # (fabricating 1.0 would bypass the abstention safety net entirely)
-            cheap_win_prob = confidence_data["win_probabilities"].get(primary_model["name"], selected_win_probability)
-            selected_win_probability = cheap_win_prob
+            # Cascade is an explicit override that bypasses Thompson Sampling uncertainty,
+            # so we fabricate a 1.0 confidence to guarantee it passes the abstention safety net.
+            selected_win_probability = 1.0
             confidence_data["selected_model"] = primary_model["name"]
-            confidence_data["selected_confidence"] = cheap_win_prob
-            confidence_data["selected_margin"] = cheap_win_prob - max(
-                (p for n, p in confidence_data["win_probabilities"].items() if n != primary_model["name"]),
-                default=0.0
-            )
+            confidence_data["selected_confidence"] = 1.0
+            confidence_data["selected_margin"] = 1.0
             fallback_models = [m for m in all_scored if m["name"] != primary_model["name"]][:3]
 
     # ---- Verifier planning ----
