@@ -806,18 +806,16 @@ with st.sidebar:
 # ─────────────────────────────────────────────────────────────────────────────
 # MAIN — HERO
 # ─────────────────────────────────────────────────────────────────────────────
-col_title, col_stats = st.columns([3, 1])
-with col_title:
-    st.markdown("""
-    <div class="hero-badge">⚡ Enterprise AI Routing</div>
-    """, unsafe_allow_html=True)
-    st.title("Neural Gateway")
-    st.markdown("""
-    <p style="color:#8b949e; font-size:1.05rem; margin-top:-8px; margin-bottom:28px; line-height:1.6;">
-        Intelligent, multi-objective model selection powered by live benchmarks,<br>
-        Bayesian scoring, and Thompson Sampling.
-    </p>
-    """, unsafe_allow_html=True)
+st.markdown("""
+<div class="hero-badge">⚡ Enterprise AI Routing</div>
+""", unsafe_allow_html=True)
+st.title("Neural Gateway")
+st.markdown("""
+<p style="color:#8b949e; font-size:1.05rem; margin-top:-8px; margin-bottom:28px; line-height:1.6;">
+    Intelligent, multi-objective model selection powered by live benchmarks,
+    Bayesian scoring, and Thompson Sampling.
+</p>
+""", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PROMPT INPUT AREA
