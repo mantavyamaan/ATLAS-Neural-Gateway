@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neural Gateway — Demo</title>
+<meta name="description" content="Neural Gateway: Enterprise-grade AI routing powered by Bayesian Inference and Thompson Sampling. Try the live demo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-primary: #010409;
+  --bg-secondary: #0d1117;
+  --bg-card: rgba(22,27,34,0.92);
+  --bg-card-hover: rgba(22,27,34,1);
+  --border: rgba(48,54,61,0.7);
+  --border-accent: rgba(88,166,255,0.25);
+  --text-primary: #e6edf3;
+  --text-secondary: #c9d1d9;
+  --text-muted: #8b949e;
+  --text-dim: #484f58;
+  --blue: #58a6ff;
+  --blue-dim: rgba(88,166,255,0.12);
+  --purple: #8b5cf6;
+  --purple-dim: rgba(139,92,246,0.12);
+  --green: #4ade80;
+  --green-dim: rgba(34,197,94,0.1);
+  --orange: #fb923c;
+  --red: #f87171;
+  --sidebar-w: 280px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ── Background glow ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 15% 80%, rgba(88,166,255,0.05) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 15%, rgba(139,92,246,0.05) 0%, transparent 55%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(88,166,255,0.2); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(88,166,255,0.35); }
+
+/* ── Layout ── */
+.layout { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: rgba(13,17,23,0.98);
+  border-right: 1px solid rgba(88,166,255,0.1);
+  padding: 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 28px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.logo-icon {
+  width: 40px; height: 40px;
+  background: linear-gradient(135deg, #58a6ff, #8b5cf6);
+  border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 0 24px rgba(88,166,255,0.3);
+  flex-shrink: 0;
+}
+
+.logo-text { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.05rem; color: var(--text-primary); }
+.logo-version {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem; color: var(--blue);
+  background: rgba(88,166,255,0.1);
+  border: 1px solid rgba(88,166,255,0.2);
+  border-radius: 6px;
+  padding: 2px 7px;
+  margin-top: 3px;
+  display: inline-block;
+}
+
+.live-indicator {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.8rem; color: #4ade80; margin-bottom: 22px;
+}
+
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #4ade80;
+  animation: dotPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes dotPulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+.section-header {
+  font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 2px; color: var(--text-muted);
+  margin: 20px 0 12px 0;
+}
+
+/* Toggles */
+.toggle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+.toggle-item { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.toggle-item label { font-size: 0.83rem; color: var(--text-secondary); cursor: pointer; }
+
+.toggle {
+  position: relative; width: 34px; height: 18px; flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute; inset: 0;
+  background: rgba(48,54,61,0.8); border-radius: 99px; cursor: pointer;
+  border: 1px solid rgba(48,54,61,0.9);
+  transition: background 0.2s;
+}
+.toggle input:checked + .toggle-track { background: rgba(88,166,255,0.7); }
+.toggle-track::after {
+  content: '';
+  position: absolute; top: 2px; left: 2px;
+  width: 12px; height: 12px; border-radius: 50%; background: #fff;
+  transition: transform 0.2s;
+}
+.toggle input:checked + .toggle-track::after { transform: translateX(16px); }
+
+/* Slider */
+.slider-wrap { margin-bottom: 16px; }
+.slider-label-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.slider-label { font-size: 0.83rem; color: var(--text-secondary); }
+.slider-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem; color: var(--blue);
+  background: rgba(88,166,255,0.08);
+  border: 1px solid rgba(88,166,255,0.15);
+  border-radius: 6px; padding: 1px 7px;
+}
+
+input[type="range"] {
+  width: 100%; height: 4px; -webkit-appearance: none;
+  background: rgba(48,54,61,0.8); border-radius: 99px; outline: none; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: linear-gradient(135deg, #58a6ff, #8b5cf6);
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(88,166,255,0.4);
+}
+
+/* Text inputs */
+.sidebar-input-wrap { margin-bottom: 14px; }
+.sidebar-input-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px; display: block; }
+.sidebar-input {
+  width: 100%; padding: 9px 12px;
+  background: rgba(22,27,34,0.95);
+  border: 1px solid rgba(48,54,61,0.8);
+  border-radius: 9px; color: var(--text-primary);
+  font-family: 'Inter', sans-serif; font-size: 0.85rem;
+  outline: none; transition: border-color 0.2s;
+}
+.sidebar-input:focus { border-color: rgba(88,166,255,0.4); }
+.sidebar-input::placeholder { color: var(--text-dim); }
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 14px 16px;
+  background: rgba(22,27,34,0.6);
+  border: 1px solid rgba(48,54,61,0.5);
+  border-radius: 12px;
+  font-size: 0.75rem; color: var(--text-dim);
+  text-align: center; line-height: 1.7;
+}
+.sidebar-footer span { color: var(--blue); }
+
+/* ── Main ── */
+.main { flex: 1; padding: 40px 48px; max-width: 1100px; }
+
+/* Hero */
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 13px;
+  background: rgba(88,166,255,0.07);
+  border: 1px solid rgba(88,166,255,0.18);
+  border-radius: 99px;
+  font-size: 0.72rem; font-weight: 600; color: var(--blue);
+  letter-spacing: 0.8px; text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+h1 {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800; font-size: 2.8rem;
+  letter-spacing: -1.5px;
+  background: linear-gradient(135deg, #58a6ff 0%, #8b5cf6 50%, #38bdf8 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.1;
+  margin-bottom: 12px;
+}
+
+.hero-sub {
+  color: var(--text-muted); font-size: 1.02rem;
+  line-height: 1.65; margin-bottom: 36px;
+}
+
+/* ── Demo Banner ── */
+.demo-banner {
+  display: flex; align-items: flex-start; gap: 14px;
+  background: linear-gradient(135deg, rgba(139,92,246,0.12), rgba(88,166,255,0.08));
+  border: 1px solid rgba(139,92,246,0.3);
+  border-radius: 14px; padding: 16px 20px;
+  margin-bottom: 28px;
+}
+.demo-banner-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 1px; }
+.demo-banner-title { font-weight: 600; color: #a78bfa; font-size: 0.92rem; margin-bottom: 4px; }
+.demo-banner-text { font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; }
+.demo-banner-text a { color: var(--blue); text-decoration: none; }
+.demo-banner-text a:hover { text-decoration: underline; }
+
+/* ── Prompt section ── */
+.prompt-label {
+  font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 1.8px; color: var(--text-muted);
+  margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+}
+
+.prompt-textarea {
+  width: 100%; min-height: 150px;
+  background: rgba(22,27,34,0.95);
+  border: 1px solid rgba(48,54,61,0.8);
+  border-radius: 14px; color: var(--text-primary);
+  font-family: 'Inter', sans-serif; font-size: 1rem;
+  line-height: 1.7; padding: 18px 20px;
+  outline: none; resize: vertical;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.prompt-textarea:focus {
+  border-color: rgba(88,166,255,0.45);
+  box-shadow: 0 0 0 3px rgba(88,166,255,0.1), 0 0 40px rgba(88,166,255,0.06);
+}
+.prompt-textarea::placeholder { color: var(--text-dim); }
+
+.prompt-row {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 14px;
+}
+
+.file-attach {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  background: rgba(22,27,34,0.8);
+  border: 1px dashed rgba(48,54,61,0.8);
+  border-radius: 10px; color: var(--text-muted);
+  font-size: 0.85rem; cursor: pointer; flex: 1;
+  transition: border-color 0.2s;
+}
+.file-attach:hover { border-color: rgba(88,166,255,0.35); color: var(--blue); }
+
+/* ── CTA Button ── */
+@keyframes glowPulse {
+  0%,100% { box-shadow: 0 0 20px rgba(88,166,255,0.25), 0 4px 20px rgba(99,102,241,0.2); }
+  50%      { box-shadow: 0 0 35px rgba(88,166,255,0.45), 0 4px 30px rgba(139,92,246,0.3); }
+}
+
+.btn-primary {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px 28px;
+  background: linear-gradient(135deg, #1d4ed8 0%, #4338ca 45%, #6d28d9 100%);
+  color: #fff; border: none; border-radius: 12px;
+  font-family: 'Outfit', sans-serif; font-size: 0.95rem; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: all 0.3s ease;
+  animation: glowPulse 3s ease-in-out infinite;
+  min-width: 170px;
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 45%, #7c3aed 100%);
+  transform: translateY(-2px);
+  animation: none;
+  box-shadow: 0 8px 30px rgba(99,102,241,0.5);
+}
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; animation: none; transform: none; }
+
+.btn-secondary {
+  padding: 12px 22px;
+  background: rgba(22,27,34,0.95);
+  border: 1px solid rgba(48,54,61,0.8);
+  border-radius: 12px; color: var(--text-secondary);
+  font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s;
+}
+.btn-secondary:hover { border-color: rgba(88,166,255,0.4); color: var(--blue); }
+
+/* ── Spinner ── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 18px; height: 18px;
+  border: 2px solid rgba(88,166,255,0.2);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+/* ── Status banners ── */
+.status-banner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 20px; border-radius: 13px;
+  font-weight: 500; font-size: 0.9rem;
+  margin-bottom: 20px; border: 1px solid transparent;
+}
+.status-success { background: linear-gradient(135deg,rgba(22,101,52,0.22),rgba(21,128,61,0.12)); border-color: rgba(34,197,94,0.28); color: #4ade80; }
+.status-error   { background: linear-gradient(135deg,rgba(127,29,29,0.22),rgba(153,27,27,0.12)); border-color: rgba(239,68,68,0.28); color: #f87171; }
+.status-info    { background: linear-gradient(135deg,rgba(88,166,255,0.1),rgba(56,189,248,0.06)); border-color: rgba(88,166,255,0.25); color: var(--blue); }
+
+/* ── Cards ── */
+.ng-card {
+  background: linear-gradient(145deg, rgba(22,27,34,0.92), rgba(13,17,23,0.96));
+  border: 1px solid var(--border);
+  border-radius: 18px; padding: 26px 28px;
+  margin-bottom: 18px; position: relative; overflow: hidden;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.ng-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg,transparent,rgba(88,166,255,0.2),transparent);
+}
+.ng-card:hover { border-color: rgba(88,166,255,0.2); box-shadow: 0 6px 30px rgba(88,166,255,0.06); }
+
+.card-title {
+  font-family: 'Outfit', sans-serif; font-weight: 700;
+  font-size: 0.98rem; color: var(--text-primary); margin-bottom: 14px;
+}
+
+.ng-divider {
+  height: 1px;
+  background: linear-gradient(90deg,transparent,rgba(48,54,61,0.9),transparent);
+  margin-bottom: 18px;
+}
+
+/* ── Metric cards ── */
+.metrics-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 18px; }
+
+.metric-card {
+  background: linear-gradient(145deg,rgba(22,27,34,0.95),rgba(13,17,23,0.98));
+  border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px;
+  position: relative; overflow: hidden;
+  transition: all 0.3s ease;
+}
+.metric-card::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg,#58a6ff,#8b5cf6);
+  transform: scaleX(0); transform-origin: left; transition: transform 0.3s;
+}
+.metric-card:hover { border-color: rgba(88,166,255,0.28); transform: translateY(-2px); box-shadow: 0 4px 24px rgba(88,166,255,0.08); }
+.metric-card:hover::after { transform: scaleX(1); }
+
+.metric-icon { font-size: 1.4rem; margin-bottom: 10px; display: block; }
+.metric-label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1.8px; color: var(--text-muted); margin-bottom: 8px; }
+.metric-value {
+  font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.5rem;
+  color: var(--text-primary); letter-spacing: -0.5px;
+  word-break: break-word;
+}
+.metric-value.gradient {
+  background: linear-gradient(135deg,#58a6ff,#8b5cf6);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+/* ── Two-column ── */
+.two-col { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; margin-bottom: 18px; }
+
+/* ── Tags ── */
+.tag {
+  display: inline-block; padding: 4px 11px;
+  border-radius: 8px; font-size: 0.77rem; font-weight: 600;
+  font-family: 'JetBrains Mono', monospace; margin: 3px;
+}
+.tag-blue   { background:rgba(88,166,255,0.12); border:1px solid rgba(88,166,255,0.28); color:#58a6ff; }
+.tag-purple { background:rgba(139,92,246,0.12); border:1px solid rgba(139,92,246,0.28); color:#a78bfa; }
+.tag-green  { background:rgba(34,197,94,0.1);   border:1px solid rgba(34,197,94,0.24); color:#4ade80; }
+.tag-orange { background:rgba(251,146,60,0.1);  border:1px solid rgba(251,146,60,0.24); color:#fb923c; }
+.tag-red    { background:rgba(239,68,68,0.1);   border:1px solid rgba(239,68,68,0.24); color:#f87171; }
+
+/* ── Pipeline mini-grid ── */
+.pipeline-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.pipeline-cell {
+  background:rgba(22,27,34,0.8); border:1px solid rgba(48,54,61,0.6);
+  border-radius:12px; padding:13px 16px;
+}
+.pipeline-cell-label { font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:5px; font-weight:600; }
+.pipeline-cell-val { font-family:'Outfit',sans-serif; font-size:1.7rem; font-weight:700; }
+
+/* ── Progress bars ── */
+.pbar-row { margin-bottom:13px; }
+.pbar-header { display:flex; justify-content:space-between; margin-bottom:5px; }
+.pbar-name { font-size:0.82rem; color:var(--text-secondary); font-weight:500; }
+.pbar-pct { font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--blue); font-weight:600; }
+.pbar-track { height:6px; background:rgba(48,54,61,0.8); border-radius:99px; overflow:hidden; }
+.pbar-fill { height:100%; border-radius:99px; transition:width 1s cubic-bezier(0.4,0,0.2,1); }
+
+/* ── Model pill ── */
+.model-pill {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:5px 13px;
+  background:rgba(88,166,255,0.1); border:1px solid rgba(88,166,255,0.25);
+  border-radius:99px; color:var(--blue);
+  font-size:0.8rem; font-weight:500;
+  font-family:'JetBrains Mono',monospace; margin:3px;
+}
+.model-pill-fallback { background:rgba(48,54,61,0.4); border-color:rgba(48,54,61,0.7); color:var(--text-muted); }
+
+/* ── Expander / Details ── */
+details {
+  background:rgba(22,27,34,0.6); border:1px solid rgba(48,54,61,0.6);
+  border-radius:12px; margin-bottom:18px; overflow:hidden;
+}
+summary {
+  padding:14px 20px; cursor:pointer;
+  font-weight:600; font-size:0.88rem; color:var(--text-secondary);
+  list-style:none; display:flex; align-items:center; gap:8px;
+  user-select:none;
+}
+summary::-webkit-details-marker { display:none; }
+summary::before { content:'▶'; font-size:0.65rem; transition:transform 0.2s; }
+details[open] summary::before { transform:rotate(90deg); }
+.details-body { padding:4px 20px 20px 20px; }
+.details-body pre {
+  background:rgba(13,17,23,0.8); border:1px solid rgba(48,54,61,0.5);
+  border-radius:10px; padding:16px; overflow:auto;
+  font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:#adbac7;
+  max-height:360px; line-height:1.6;
+}
+
+/* ── Demo lock panel ── */
+.demo-lock {
+  background: linear-gradient(145deg,rgba(22,27,34,0.95),rgba(13,17,23,0.98));
+  border: 1px solid rgba(139,92,246,0.3);
+  border-radius:18px; padding:40px 32px;
+  text-align:center; margin-bottom:18px;
+  position:relative; overflow:hidden;
+}
+.demo-lock::before {
+  content:'';
+  position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,rgba(139,92,246,0.5),transparent);
+}
+.demo-lock-icon { font-size:2.6rem; margin-bottom:16px; }
+.demo-lock-title { font-family:'Outfit',sans-serif; font-weight:700; font-size:1.2rem; color:var(--text-primary); margin-bottom:10px; }
+.demo-lock-desc { font-size:0.9rem; color:var(--text-muted); line-height:1.7; max-width:480px; margin:0 auto 22px; }
+.demo-lock-steps {
+  background:rgba(13,17,23,0.6); border:1px solid rgba(48,54,61,0.6);
+  border-radius:12px; padding:16px 20px; text-align:left;
+  font-size:0.85rem; color:var(--text-muted); line-height:2;
+  max-width:420px; margin:0 auto;
+  font-family:'JetBrains Mono',monospace;
+}
+.demo-lock-steps span { color:var(--blue); }
+
+/* ── Feedback form ── */
+.feedback-note {
+  background:rgba(88,166,255,0.05); border:1px solid rgba(88,166,255,0.12);
+  border-radius:10px; padding:12px 16px;
+  font-size:0.84rem; color:var(--text-muted); line-height:1.6;
+  margin-bottom:18px;
+}
+.form-row { display:grid; grid-template-columns:repeat(4,1fr) auto; gap:10px; align-items:end; }
+.form-group { display:flex; flex-direction:column; gap:5px; }
+.form-label { font-size:0.78rem; color:var(--text-muted); font-weight:500; }
+.form-select {
+  background:rgba(22,27,34,0.95); border:1px solid rgba(48,54,61,0.8);
+  border-radius:9px; color:var(--text-primary);
+  font-family:'Inter',sans-serif; font-size:0.85rem; padding:9px 12px;
+  outline:none; cursor:pointer; transition:border-color 0.2s;
+}
+.form-select:focus { border-color:rgba(88,166,255,0.4); }
+
+/* ── Hidden ── */
+.hidden { display:none !important; }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .sidebar { display:none; }
+  .main { padding:28px 20px; }
+  .metrics-grid { grid-template-columns:1fr 1fr; }
+  .two-col { grid-template-columns:1fr; }
+  .form-row { grid-template-columns:1fr 1fr; }
+}
+@media (max-width: 540px) {
+  h1 { font-size:2rem; }
+  .metrics-grid { grid-template-columns:1fr 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ═══════════════════════════════ SIDEBAR ═══════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <div class="logo-text">Neural Gateway</div>
+        <span class="logo-version">v1.0 · Demo</span>
+      </div>
+    </div>
+
+    <div class="live-indicator">
+      <div class="live-dot"></div>
+      Demo Mode Active
+    </div>
+
+    <div class="section-header">Request Capabilities</div>
+    <div class="toggle-grid">
+      <label class="toggle-item">
+        <span class="toggle"><input type="checkbox" id="tog-json"><span class="toggle-track"></span></span>
+        <label for="tog-json">JSON Mode</label>
+      </label>
+      <label class="toggle-item">
+        <span class="toggle"><input type="checkbox" id="tog-search"><span class="toggle-track"></span></span>
+        <label for="tog-search">Web Search</label>
+      </label>
+      <label class="toggle-item">
+        <span class="toggle"><input type="checkbox" id="tog-ocr"><span class="toggle-track"></span></span>
+        <label for="tog-ocr">OCR</label>
+      </label>
+      <label class="toggle-item">
+        <span class="toggle"><input type="checkbox" id="tog-cite"><span class="toggle-track"></span></span>
+        <label for="tog-cite">Citations</label>
+      </label>
+    </div>
+
+    <div class="section-header">Performance Limits</div>
+    <div class="slider-wrap">
+      <div class="slider-label-row">
+        <span class="slider-label">Max Latency</span>
+        <span class="slider-val" id="latency-val">5000 ms</span>
+      </div>
+      <input type="range" min="500" max="20000" step="500" value="5000" id="latency-slider">
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-label-row">
+        <span class="slider-label">Max Cost ($/1M tokens)</span>
+        <span class="slider-val" id="cost-val">$10.0</span>
+      </div>
+      <input type="range" min="1" max="100" step="1" value="10" id="cost-slider">
+    </div>
+
+    <div class="section-header">Tenant</div>
+    <div class="sidebar-input-wrap">
+      <span class="sidebar-input-label">Tenant ID</span>
+      <input type="text" class="sidebar-input" value="tenant-demo" id="tenant-id">
+    </div>
+
+    <div class="sidebar-footer">
+      Powered by <span>Bayesian Inference</span><br>
+      &amp; <span style="color:#8b5cf6">Thompson Sampling</span>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════════════════ MAIN ═══════════════════════════════ -->
+  <main class="main">
+
+    <!-- Hero -->
+    <div class="hero-badge">⚡ Enterprise AI Routing</div>
+    <h1>Neural Gateway</h1>
+    <p class="hero-sub">
+      Intelligent, multi-objective model selection powered by live benchmarks,<br>
+      Bayesian scoring, and Thompson Sampling.
+    </p>
+
+    <!-- Demo Banner -->
+    <div class="demo-banner">
+      <div class="demo-banner-icon">🧪</div>
+      <div>
+        <div class="demo-banner-title">Interactive Demo — Mock Routing Engine</div>
+        <div class="demo-banner-text">
+          This demo simulates the Neural Gateway routing pipeline.
+          The routing logic and model selection are real — but LLM response generation requires the
+          <a href="https://github.com/mantavyamaan/Neural-Gateway" target="_blank">full local setup</a>.
+          Follow the README to deploy your own instance.
+        </div>
+      </div>
+    </div>
+
+    <!-- Prompt -->
+    <p class="prompt-label">📝 Your Prompt</p>
+    <textarea id="prompt-input" class="prompt-textarea"
+      placeholder="Describe your task — e.g. 'Implement a concurrent web crawler in Python with rate limiting, exponential backoff, and structured JSON output…'"></textarea>
+
+    <div class="prompt-row">
+      <div class="file-attach" onclick="this.querySelector('input').click()">
+        📎 Attach files (PDF, images, Excel…)
+        <input type="file" multiple style="display:none">
+      </div>
+      <button class="btn-primary" id="route-btn" onclick="runRouting()">
+        ⚡ Route Request
+      </button>
+    </div>
+
+    <!-- ── Results area ── -->
+    <div id="results" class="hidden" style="margin-top:28px;">
+
+      <!-- Status banner -->
+      <div id="status-banner" class="status-banner status-success">
+        ✅ <strong id="status-text">Routing Successful</strong>
+      </div>
+
+      <!-- Metrics -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <span class="metric-icon">🎯</span>
+          <div class="metric-label">Selected Model</div>
+          <div class="metric-value gradient" id="res-model" style="font-size:1.1rem;">—</div>
+        </div>
+        <div class="metric-card">
+          <span class="metric-icon">📊</span>
+          <div class="metric-label">Confidence</div>
+          <div class="metric-value gradient" id="res-confidence">—</div>
+        </div>
+        <div class="metric-card">
+          <span class="metric-icon">⚡</span>
+          <div class="metric-label">Est. Latency</div>
+          <div class="metric-value" id="res-latency">—</div>
+        </div>
+        <div class="metric-card">
+          <span class="metric-icon">💰</span>
+          <div class="metric-label">Est. Cost</div>
+          <div class="metric-value" id="res-cost">—</div>
+        </div>
+      </div>
+
+      <!-- Task analysis + Pipeline -->
+      <div class="two-col">
+        <div class="ng-card">
+          <div class="card-title">🧠 Semantic Task Analysis</div>
+          <div class="ng-divider"></div>
+
+          <p style="color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;font-weight:600;">Task Classification</p>
+          <div id="tags-classification" style="margin-bottom:16px;"></div>
+
+          <p style="color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;font-weight:600;">Risk &amp; Complexity</p>
+          <div id="tags-risk" style="margin-bottom:16px;"></div>
+
+          <div id="complexity-alert" class="hidden" style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);border-radius:10px;padding:11px 15px;font-size:0.84rem;color:#a78bfa;margin-bottom:10px;">
+            🧩 <strong>High-Complexity Task</strong> — Router prioritized frontier reasoning models.
+          </div>
+
+          <p style="color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;font-weight:600;">Fallback Chain</p>
+          <div id="fallback-pills"></div>
+        </div>
+
+        <div class="ng-card">
+          <div class="card-title">🔬 Pipeline Trace</div>
+          <div class="ng-divider"></div>
+          <div class="pipeline-grid">
+            <div class="pipeline-cell">
+              <div class="pipeline-cell-label">Registry</div>
+              <div class="pipeline-cell-val" style="color:var(--text-primary);" id="tr-registry">344</div>
+            </div>
+            <div class="pipeline-cell">
+              <div class="pipeline-cell-label">Feasible</div>
+              <div class="pipeline-cell-val" style="color:var(--blue);" id="tr-feasible">—</div>
+            </div>
+            <div class="pipeline-cell">
+              <div class="pipeline-cell-label">After Policy</div>
+              <div class="pipeline-cell-val" style="color:#a78bfa;" id="tr-policy">—</div>
+            </div>
+            <div class="pipeline-cell">
+              <div class="pipeline-cell-label">Pareto Frontier</div>
+              <div class="pipeline-cell-val" style="color:var(--green);" id="tr-pareto">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quality breakdown -->
+      <div class="ng-card">
+        <div class="card-title">📈 Quality Score Breakdown</div>
+        <div class="ng-divider"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;" id="quality-grid">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+
+      <!-- Raw JSON expander -->
+      <details>
+        <summary>🔍 View Raw Decision JSON</summary>
+        <div class="details-body">
+          <pre id="raw-json"></pre>
+        </div>
+      </details>
+
+      <!-- Feedback -->
+      <div class="ng-card">
+        <div class="card-title">🎓 Correct the Semantic Parser</div>
+        <div class="ng-divider"></div>
+        <div class="feedback-note">
+          If the router misclassified your task, submit the correct labels here. In the full model, the KNN memory matrix is instantly rebuilt with your correction.
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Primary Family</label>
+            <select class="form-select" id="fb-family">
+              <option>chat</option><option>coding</option><option>reasoning</option>
+              <option>mathematics</option><option>vision</option><option>ocr</option>
+              <option>document_qa</option><option>audio</option><option>agent</option>
+              <option>translation</option><option>summarization</option>
+              <option>image_generation</option><option>video_generation</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Domain</label>
+            <select class="form-select" id="fb-domain">
+              <option>general</option><option>software</option><option>medical</option>
+              <option>legal</option><option>finance</option><option>security</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Risk Tier</label>
+            <select class="form-select" id="fb-risk">
+              <option>low</option><option>medium</option><option>high</option><option>extreme</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Complexity</label>
+            <select class="form-select" id="fb-complexity">
+              <option>low</option><option>medium</option><option>high</option>
+            </select>
+          </div>
+          <button class="btn-secondary" onclick="submitFeedback()">Submit</button>
+        </div>
+        <div id="feedback-toast" class="hidden" style="margin-top:12px;">
+          <div class="status-banner status-success">✅ Feedback submitted (demo only — no data stored).</div>
+        </div>
+      </div>
+
+      <!-- Stage 2 — Demo Lock -->
+      <div class="demo-lock">
+        <div class="demo-lock-icon">🔒</div>
+        <div class="demo-lock-title">LLM Response Generation — Full Model Required</div>
+        <div class="demo-lock-desc">
+          This is a demo of the Neural Gateway routing engine. To generate actual LLM responses
+          using the selected model (<strong id="lock-model-name" style="color:var(--blue);">—</strong>),
+          you need to run the full Neural Gateway locally.
+        </div>
+        <div class="demo-lock-steps">
+          <div><span># 1.</span> git clone https://github.com/mantavyamaan/Neural-Gateway</div>
+          <div><span># 2.</span> pip install -r requirements.txt</div>
+          <div><span># 3.</span> cp .env.example .env  <span style="color:#484f58"># add your keys</span></div>
+          <div><span># 4.</span> uvicorn app.main:app --reload</div>
+          <div><span># 5.</span> streamlit run frontend.py</div>
+        </div>
+      </div>
+
+    </div><!-- /results -->
+
+  </main>
+</div>
+
+<!-- ═══════════════════════════════ JAVASCRIPT ═══════════════════════════════ -->
+<script>
+// ── Sidebar reactivity ──
+document.getElementById('latency-slider').addEventListener('input', function() {
+  document.getElementById('latency-val').textContent = this.value + ' ms';
+});
+document.getElementById('cost-slider').addEventListener('input', function() {
+  document.getElementById('cost-val').textContent = '$' + parseFloat(this.value).toFixed(1);
+});
+
+// ── Routing Models database ──
+const MODELS = {
+  low: [
+    { id: 'google/gemini-2.5-flash-lite', lat: 320, cost: 0.000018, coding: 0.74, intel: 0.72 },
+    { id: 'meta-llama/llama-3.1-8b-instruct', lat: 280, cost: 0.000012, coding: 0.54, intel: 0.48 },
+    { id: 'google/gemini-2.5-flash', lat: 480, cost: 0.000028, coding: 0.74, intel: 0.74 },
+  ],
+  medium: [
+    { id: 'anthropic/claude-sonnet-4', lat: 1200, cost: 0.000280, coding: 0.376, intel: 0.680 },
+    { id: 'google/gemini-2.5-pro', lat: 1800, cost: 0.000450, coding: 0.860, intel: 0.820 },
+    { id: 'openai/gpt-4.1-mini', lat: 900, cost: 0.000095, coding: 0.202, intel: 0.148 },
+    { id: 'deepseek/deepseek-chat-v3-0324', lat: 1100, cost: 0.000095, coding: 0.212, intel: 0.154 },
+  ],
+  high: [
+    { id: 'google/gemini-2.5-pro-preview', lat: 3200, cost: 0.000920, coding: 0.860, intel: 0.860 },
+    { id: 'anthropic/claude-opus-4', lat: 4100, cost: 0.001800, coding: 0.860, intel: 0.860 },
+    { id: 'openai/gpt-5.6-sol', lat: 3800, cost: 0.001200, coding: 0.774, intel: 0.589 },
+    { id: 'moonshotai/kimi-k3', lat: 2900, cost: 0.000750, coding: 0.762, intel: 0.571 },
+  ]
+};
+
+const FALLBACKS_MAP = {
+  low:    ['meta-llama/llama-3.2-3b-instruct', 'google/gemini-2.5-flash'],
+  medium: ['google/gemini-2.5-flash', 'meta-llama/llama-3.3-70b-instruct'],
+  high:   ['google/gemini-2.5-pro', 'anthropic/claude-sonnet-4'],
+};
+
+// ── Semantic parser (heuristic) ──
+function parsePrompt(text) {
+  const t = text.toLowerCase();
+
+  // Family
+  let family = 'chat';
+  if (/\b(code|implement|function|class|algorithm|script|debug|refactor|api|sql|query|program)\b/.test(t)) family = 'coding';
+  else if (/\b(math|equation|calculate|prove|integral|derivative|probability|statistics|formula)\b/.test(t)) family = 'mathematics';
+  else if (/\b(analyze|reason|why|explain|compare|evaluate|critique|think|strategy)\b/.test(t)) family = 'reasoning';
+  else if (/\b(summarize|summary|tldr|abstract|condense|brief)\b/.test(t)) family = 'summarization';
+  else if (/\b(translate|spanish|french|german|japanese|mandarin|hindi|arabic)\b/.test(t)) family = 'translation';
+  else if (/\b(image|picture|photo|vision|describe this|what is in|detect)\b/.test(t)) family = 'vision';
+  else if (/\b(document|pdf|contract|report|legal|agreement|extract from)\b/.test(t)) family = 'document_qa';
+  else if (/\b(agent|automate|workflow|tool|orchestrate|multi-step)\b/.test(t)) family = 'agent';
+
+  // Domain
+  let domain = 'general';
+  if (/\b(code|software|python|javascript|react|api|database|backend|frontend|devops)\b/.test(t)) domain = 'software';
+  else if (/\b(medical|clinical|diagnosis|patient|drug|pharma|health|disease|symptom)\b/.test(t)) domain = 'medical';
+  else if (/\b(legal|law|contract|court|regulation|compliance|gdpr|litigation)\b/.test(t)) domain = 'legal';
+  else if (/\b(finance|stock|market|invest|accounting|tax|revenue|profit|crypto)\b/.test(t)) domain = 'finance';
+  else if (/\b(security|vulnerability|exploit|penetration|hack|firewall|threat)\b/.test(t)) domain = 'security';
+
+  // Complexity
+  const wordCount = text.trim().split(/\s+/).length;
+  let complexity = 'low';
+  const complexWords = (t.match(/\b(concurrent|distributed|async|recursive|bayesian|optimize|architecture|complex|advanced|multi-stage|implement|design|prove|analyze|evaluate|step-by-step|comprehensive|production|scalable|enterprise)\b/g) || []).length;
+  if (wordCount > 50 || complexWords >= 3) complexity = 'high';
+  else if (wordCount > 20 || complexWords >= 1) complexity = 'medium';
+
+  // Risk
+  let risk = 'low';
+  if (domain === 'medical' || domain === 'legal' || /\b(critical|important|urgent|sensitive|confidential|production)\b/.test(t)) risk = 'high';
+  else if (complexity === 'high' || domain === 'finance') risk = 'medium';
+
+  return { family, domain, complexity, risk };
+}
+
+// ── Select winning model ──
+function selectModel(task) {
+  const pool = MODELS[task.complexity];
+  // pick with slight randomness for Thompson sampling feel
+  const winner = pool[Math.floor(Math.random() * pool.length)];
+  const confidence = 0.78 + Math.random() * 0.18;
+  return { winner, confidence };
+}
+
+// ── Progress bar HTML ──
+function pbarHTML(label, value) {
+  const pct = Math.min(Math.max(value, 0), 1);
+  const color = pct > 0.65 ? '#58a6ff' : (pct > 0.40 ? '#fb923c' : '#f87171');
+  return `<div class="pbar-row">
+    <div class="pbar-header">
+      <span class="pbar-name">${label}</span>
+      <span class="pbar-pct">${(pct*100).toFixed(1)}%</span>
+    </div>
+    <div class="pbar-track">
+      <div class="pbar-fill" style="width:${pct*100}%;background:linear-gradient(90deg,${color}aa,${color});"></div>
+    </div>
+  </div>`;
+}
+
+// ── Tag HTML ──
+function tagHTML(text, cls) { return `<span class="tag ${cls}">${text}</span>`; }
+function pillHTML(name, fallback=false) {
+  return `<span class="model-pill ${fallback?'model-pill-fallback':''}">${fallback?'↓':'⚡'} ${name.split('/').pop()}</span>`;
+}
+
+// ── Main routing function ──
+function runRouting() {
+  const prompt = document.getElementById('prompt-input').value.trim();
+  if (!prompt) {
+    document.getElementById('prompt-input').style.borderColor = 'rgba(239,68,68,0.5)';
+    setTimeout(() => document.getElementById('prompt-input').style.borderColor = '', 1500);
+    return;
+  }
+
+  const btn = document.getElementById('route-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Routing…';
+
+  // Simulate async delay
+  setTimeout(() => {
+    const task = parsePrompt(prompt);
+    const { winner, confidence } = selectModel(task);
+    const latency = winner.lat + Math.round((Math.random()-0.5)*100);
+    const cost = winner.cost * (0.9 + Math.random()*0.2);
+
+    // Pipeline trace numbers (realistic funnel)
+    const registry = 344;
+    const feasible = Math.floor(registry * (0.65 + Math.random()*0.15));
+    const policy   = Math.floor(feasible * (0.55 + Math.random()*0.2));
+    const pareto   = Math.floor(policy * (0.08 + Math.random()*0.08));
+
+    // Quality scores
+    const base = task.complexity === 'high' ? 0.82 : task.complexity === 'medium' ? 0.68 : 0.55;
+    const quality = {
+      contextual_mean:       Math.min(base + 0.04 + Math.random()*0.08, 0.99),
+      workflow_fit:          Math.min(base + 0.02 + Math.random()*0.06, 0.99),
+      domain_fit:            Math.min(base + 0.06 + Math.random()*0.10, 0.99),
+      runtime_adjusted_mean: Math.min(base        + Math.random()*0.06, 0.99),
+    };
+
+    const fallbacks = FALLBACKS_MAP[task.complexity];
+
+    // Risk/complexity colors
+    const riskColor  = {low:'tag-green', medium:'tag-orange', high:'tag-red', extreme:'tag-red'}[task.risk];
+    const compColor  = {low:'tag-green', medium:'tag-orange', high:'tag-purple'}[task.complexity];
+
+    // ── Populate DOM ──
+    document.getElementById('res-model').textContent     = winner.id.split('/').pop();
+    document.getElementById('res-confidence').textContent = (confidence*100).toFixed(1)+'%';
+    document.getElementById('res-latency').innerHTML      = `${latency} <span style="font-size:0.9rem;color:var(--text-muted)">ms</span>`;
+    document.getElementById('res-cost').textContent       = '$' + cost.toFixed(5);
+
+    document.getElementById('tags-classification').innerHTML = tagHTML(task.family,'tag-blue') + tagHTML(task.domain,'tag-purple');
+    document.getElementById('tags-risk').innerHTML           = tagHTML('Risk: '+task.risk, riskColor) + tagHTML('Complexity: '+task.complexity, compColor);
+
+    const alertEl = document.getElementById('complexity-alert');
+    if (task.complexity === 'high') alertEl.classList.remove('hidden');
+    else alertEl.classList.add('hidden');
+
+    document.getElementById('fallback-pills').innerHTML = fallbacks.map(f => pillHTML(f, true)).join('');
+
+    document.getElementById('tr-registry').textContent = registry;
+    document.getElementById('tr-feasible').textContent = feasible;
+    document.getElementById('tr-policy').textContent   = policy;
+    document.getElementById('tr-pareto').textContent   = pareto;
+
+    // Quality grid
+    const qItems = [
+      ['Contextual Fit', quality.contextual_mean],
+      ['Workflow Fit',   quality.workflow_fit],
+      ['Domain Fit',     quality.domain_fit],
+      ['Runtime Adjusted Mean', quality.runtime_adjusted_mean],
+    ];
+    const leftBars  = pbarHTML(qItems[0][0], qItems[0][1]) + pbarHTML(qItems[2][0], qItems[2][1]);
+    const rightBars = pbarHTML(qItems[1][0], qItems[1][1]) + pbarHTML(qItems[3][0], qItems[3][1]);
+    document.getElementById('quality-grid').innerHTML = `<div>${leftBars}</div><div>${rightBars}</div>`;
+
+    // Lock panel model name
+    document.getElementById('lock-model-name').textContent = winner.id.split('/').pop();
+
+    // Raw JSON
+    const rawPayload = {
+      abstain: false,
+      selected_plan: {
+        selected_model: winner.id,
+        confidence: parseFloat(confidence.toFixed(4)),
+        expected_latency_ms: latency,
+        expected_cost_usd: parseFloat(cost.toFixed(6)),
+        fallback_models: fallbacks,
+        explanation: { quality_breakdown: quality }
+      },
+      decision_record: {
+        status: 'routed',
+        task_summary: { primary_family: task.family, domain: task.domain, complexity: task.complexity, risk_tier: task.risk },
+        pipeline_trace: { registry_models: registry, feasible_after_filter: feasible, after_policy: policy, after_pareto: pareto }
+      }
+    };
+    document.getElementById('raw-json').textContent = JSON.stringify(rawPayload, null, 2);
+
+    // Pre-select feedback dropdowns
+    document.getElementById('fb-family').value     = task.family;
+    document.getElementById('fb-domain').value     = task.domain;
+    document.getElementById('fb-risk').value       = task.risk;
+    document.getElementById('fb-complexity').value = task.complexity;
+
+    // Show results
+    document.getElementById('results').classList.remove('hidden');
+    document.getElementById('results').scrollIntoView({ behavior:'smooth', block:'start' });
+
+    btn.disabled = false;
+    btn.innerHTML = '⚡ Route Request';
+  }, 1200);
+}
+
+// Enter key shortcut (Ctrl+Enter)
+document.getElementById('prompt-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) runRouting();
+});
+
+function submitFeedback() {
+  document.getElementById('feedback-toast').classList.remove('hidden');
+  setTimeout(() => document.getElementById('feedback-toast').classList.add('hidden'), 4000);
+}
+</script>
+</body>
+</html>
