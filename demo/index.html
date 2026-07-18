@@ -806,22 +806,361 @@ document.getElementById('cost-slider').addEventListener('input', function() {
 
 // ── Routing Models database ──
 const MODELS = {
-  low: [
-    { id: 'google/gemini-2.5-flash-lite', lat: 320, cost: 0.000018, coding: 0.74, intel: 0.72 },
-    { id: 'meta-llama/llama-3.1-8b-instruct', lat: 280, cost: 0.000012, coding: 0.54, intel: 0.48 },
-    { id: 'google/gemini-2.5-flash', lat: 480, cost: 0.000028, coding: 0.74, intel: 0.74 },
+  "low": [
+    {
+      "id": "openai/gpt-4.1-mini",
+      "lat": 500,
+      "cost": 5e-05,
+      "coding": 0.8,
+      "intel": 0.78
+    },
+    {
+      "id": "openai/gpt-4.1-nano",
+      "lat": 500,
+      "cost": 5e-05,
+      "coding": 0.65,
+      "intel": 0.6
+    },
+    {
+      "id": "openai/gpt-4o-mini",
+      "lat": 500,
+      "cost": 5e-05,
+      "coding": 0.75,
+      "intel": 0.73
+    },
+    {
+      "id": "openai/gpt-3.5-turbo",
+      "lat": 500,
+      "cost": 5e-05,
+      "coding": 0.6,
+      "intel": 0.55
+    },
+    {
+      "id": "anthropic/claude-3-haiku",
+      "lat": 500,
+      "cost": 5e-05,
+      "coding": 0.68,
+      "intel": 0.65
+    },
+    {
+      "id": "google/gemini-2.5-flash-lite",
+      "lat": 500,
+      "cost": 5e-05,
+      "coding": 0.72,
+      "intel": 0.7
+    },
+    {
+      "id": "mistralai/mistral-small-24b-instruct-2501",
+      "lat": 500,
+      "cost": 5e-05,
+      "coding": 0.72,
+      "intel": 0.7
+    },
+    {
+      "id": "qwen/qwen3-30b-a3b",
+      "lat": 500,
+      "cost": 5e-05,
+      "coding": 0.78,
+      "intel": 0.8
+    },
+    {
+      "id": "google/gemma-3-27b-it",
+      "lat": 500,
+      "cost": 5e-05,
+      "coding": 0.72,
+      "intel": 0.7
+    },
+    {
+      "id": "microsoft/phi-4",
+      "lat": 500,
+      "cost": 5e-05,
+      "coding": 0.75,
+      "intel": 0.78
+    },
+    {
+      "id": "perplexity/sonar-pro",
+      "lat": 500,
+      "cost": 5e-05,
+      "coding": 0.72,
+      "intel": 0.78
+    }
   ],
-  medium: [
-    { id: 'anthropic/claude-sonnet-4', lat: 1200, cost: 0.000280, coding: 0.376, intel: 0.680 },
-    { id: 'google/gemini-2.5-pro', lat: 1800, cost: 0.000450, coding: 0.860, intel: 0.820 },
-    { id: 'openai/gpt-4.1-mini', lat: 900, cost: 0.000095, coding: 0.202, intel: 0.148 },
-    { id: 'deepseek/deepseek-chat-v3-0324', lat: 1100, cost: 0.000095, coding: 0.212, intel: 0.154 },
+  "medium": [
+    {
+      "id": "anthropic/claude-sonnet-5",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.93,
+      "intel": 0.96
+    },
+    {
+      "id": "anthropic/claude-sonnet-4.6",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.93,
+      "intel": 0.92
+    },
+    {
+      "id": "openai/gpt-5.6-terra",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.92,
+      "intel": 0.93
+    },
+    {
+      "id": "openai/gpt-5.5",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.93,
+      "intel": 0.93
+    },
+    {
+      "id": "openai/gpt-5.4",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.92,
+      "intel": 0.93
+    },
+    {
+      "id": "google/gemini-3.1-pro",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.92,
+      "intel": 0.94
+    },
+    {
+      "id": "x-ai/grok-4.5",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.91,
+      "intel": 0.93
+    },
+    {
+      "id": "x-ai/grok-4-fast",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.84,
+      "intel": 0.85
+    },
+    {
+      "id": "bytedance/seed-2.1-pro",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.9,
+      "intel": 0.92
+    },
+    {
+      "id": "qwen/qwen3.7-max",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.89,
+      "intel": 0.9
+    },
+    {
+      "id": "qwen/qwen3.7-plus",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.83,
+      "intel": 0.84
+    },
+    {
+      "id": "moonshotai/kimi-k2.5",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.89,
+      "intel": 0.92
+    },
+    {
+      "id": "z-ai/glm-5",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.91,
+      "intel": 0.93
+    },
+    {
+      "id": "deepseek/deepseek-v4-pro",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.91,
+      "intel": 0.92
+    },
+    {
+      "id": "deepseek/deepseek-v3.2",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.9,
+      "intel": 0.91
+    },
+    {
+      "id": "minimax/minimax-m3",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.89,
+      "intel": 0.92
+    },
+    {
+      "id": "anthropic/claude-haiku-4.5",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.86,
+      "intel": 0.83
+    },
+    {
+      "id": "openai/gpt-4.1",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.93,
+      "intel": 0.91
+    },
+    {
+      "id": "openai/gpt-4o",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.88,
+      "intel": 0.9
+    },
+    {
+      "id": "openai/o4-mini",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.92,
+      "intel": 0.93
+    },
+    {
+      "id": "google/gemini-2.5-flash",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.88,
+      "intel": 0.87
+    },
+    {
+      "id": "deepseek/deepseek-chat",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.9,
+      "intel": 0.88
+    },
+    {
+      "id": "deepseek/deepseek-r1",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.92,
+      "intel": 0.96
+    },
+    {
+      "id": "meta-llama/llama-3.3-70b-instruct",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.85,
+      "intel": 0.84
+    },
+    {
+      "id": "meta-llama/llama-3-70b-instruct",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.82,
+      "intel": 0.8
+    },
+    {
+      "id": "mistralai/mistral-large",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.88,
+      "intel": 0.86
+    },
+    {
+      "id": "mistralai/codestral-2508",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.93,
+      "intel": 0.82
+    },
+    {
+      "id": "qwen/qwen3-235b-a22b",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.9,
+      "intel": 0.92
+    },
+    {
+      "id": "cohere/command-a",
+      "lat": 1500,
+      "cost": 0.0003,
+      "coding": 0.82,
+      "intel": 0.8
+    }
   ],
-  high: [
-    { id: 'google/gemini-2.5-pro-preview', lat: 3200, cost: 0.000920, coding: 0.860, intel: 0.860 },
-    { id: 'anthropic/claude-opus-4', lat: 4100, cost: 0.001800, coding: 0.860, intel: 0.860 },
-    { id: 'openai/gpt-5.6-sol', lat: 3800, cost: 0.001200, coding: 0.774, intel: 0.589 },
-    { id: 'moonshotai/kimi-k3', lat: 2900, cost: 0.000750, coding: 0.762, intel: 0.571 },
+  "high": [
+    {
+      "id": "anthropic/claude-fable-5",
+      "lat": 3000,
+      "cost": 0.001,
+      "coding": 0.98,
+      "intel": 0.97
+    },
+    {
+      "id": "openai/gpt-5.6-sol",
+      "lat": 3000,
+      "cost": 0.001,
+      "coding": 0.96,
+      "intel": 0.98
+    },
+    {
+      "id": "anthropic/claude-opus-4.8",
+      "lat": 3000,
+      "cost": 0.001,
+      "coding": 0.95,
+      "intel": 0.95
+    },
+    {
+      "id": "anthropic/claude-opus-4.7",
+      "lat": 3000,
+      "cost": 0.001,
+      "coding": 0.94,
+      "intel": 0.94
+    },
+    {
+      "id": "anthropic/claude-opus-4.6",
+      "lat": 3000,
+      "cost": 0.001,
+      "coding": 0.94,
+      "intel": 0.93
+    },
+    {
+      "id": "openai/o3",
+      "lat": 3000,
+      "cost": 0.001,
+      "coding": 0.96,
+      "intel": 0.98
+    },
+    {
+      "id": "anthropic/claude-opus-4",
+      "lat": 3000,
+      "cost": 0.001,
+      "coding": 0.97,
+      "intel": 0.97
+    },
+    {
+      "id": "anthropic/claude-sonnet-4",
+      "lat": 3000,
+      "cost": 0.001,
+      "coding": 0.96,
+      "intel": 0.95
+    },
+    {
+      "id": "anthropic/claude-3.5-sonnet",
+      "lat": 3000,
+      "cost": 0.001,
+      "coding": 0.95,
+      "intel": 0.93
+    },
+    {
+      "id": "google/gemini-2.5-pro",
+      "lat": 3000,
+      "cost": 0.001,
+      "coding": 0.95,
+      "intel": 0.95
+    }
   ]
 };
 
@@ -920,10 +1259,10 @@ function runRouting() {
     const cost = winner.cost * (0.9 + Math.random()*0.2);
 
     // Pipeline trace numbers (realistic funnel)
-    const registry = 344;
-    const feasible = Math.floor(registry * (0.65 + Math.random()*0.15));
-    const policy   = Math.floor(feasible * (0.55 + Math.random()*0.2));
-    const pareto   = Math.floor(policy * (0.08 + Math.random()*0.08));
+    const registry = MODELS.low.length + MODELS.medium.length + MODELS.high.length;
+    const feasible = Math.max(3, Math.floor(registry * (0.65 + Math.random()*0.15)));
+    const policy   = Math.max(2, Math.floor(feasible * (0.55 + Math.random()*0.2)));
+    const pareto   = Math.max(1, Math.floor(policy * (0.08 + Math.random()*0.08)));
 
     // Quality scores
     const base = task.complexity === 'high' ? 0.82 : task.complexity === 'medium' ? 0.68 : 0.55;
